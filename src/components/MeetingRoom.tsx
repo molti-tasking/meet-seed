@@ -18,6 +18,7 @@ type Meeting = {
   title: string;
   roomName: string;
   githubRepoUrl: string | null;
+  githubInstallationId: string | null;
   context: { id: string; type: string; content: string }[];
   actionItems: {
     id: string;
@@ -112,6 +113,7 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
                   meetingId={meeting.id}
                   initialContext={meeting.context}
                   initialRepoUrl={meeting.githubRepoUrl}
+                  githubInstallationId={meeting.githubInstallationId}
                 />
               ) : (
                 <SharedSurface meetingId={meeting.id} />

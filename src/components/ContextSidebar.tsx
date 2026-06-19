@@ -8,10 +8,12 @@ export function ContextSidebar({
   meetingId,
   initialContext,
   initialRepoUrl,
+  githubInstallationId,
 }: {
   meetingId: string;
   initialContext: ContextItem[];
   initialRepoUrl: string | null;
+  githubInstallationId: string | null;
 }) {
   const [items, setItems] = useState<ContextItem[]>(initialContext);
   const [note, setNote] = useState("");
@@ -122,6 +124,22 @@ export function ContextSidebar({
       >
         {busy === "github" ? "Inspecting…" : "Connect repo"}
       </button>
+
+      <label className="mb-1 block text-xs text-neutral-400">
+        GitHub App (write access for merge requests)
+      </label>
+      {githubInstallationId ? (
+        <span className="mb-4 self-start rounded bg-emerald-500/20 px-2 py-1 text-xs text-emerald-300">
+          ✓ Connected
+        </span>
+      ) : (
+        <a
+          href={`/api/github/app/connect?meetingId=${meetingId}`}
+          className="mb-4 self-start rounded bg-neutral-700 px-3 py-1 text-xs hover:bg-neutral-600"
+        >
+          Connect GitHub App
+        </a>
+      )}
 
       <h3 className="mb-2 mt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
         Attached ({items.length})

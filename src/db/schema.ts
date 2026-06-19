@@ -4,6 +4,7 @@ import {
   timestamp,
   doublePrecision,
   boolean,
+  integer,
   index,
 } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
@@ -23,6 +24,8 @@ export const meetings = pgTable("Meeting", {
   title: text("title").notNull(),
   roomName: text("roomName").notNull().unique(),
   githubRepoUrl: text("githubRepoUrl"),
+  // GitHub App installation id, set when a repo is connected to this room.
+  githubInstallationId: text("githubInstallationId"),
   status: text("status").notNull().default("active"), // active | ended
   createdAt: createdAt(),
 });
@@ -86,4 +89,28 @@ export const domRecordings = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("DomRecording_meetingId_idx").on(t.meetingId)]
+);
+
+// A coding-agent run kicked off from a meeting: a Managed Agents session that
+// implements the meeting's action items and opens a pull request.
+export const codeChangeRequests = pgTable(
+  "CodeChangeRequest",
+  {
+    id: id(),
+    meetingId: text("meetingId")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    sessionId: text("sessionId").notNull(), // Managed Agents session id
+    // Ephemeral per-run vault holding the GitHub MCP token (archived when done).
+    vaultId: text("vaultId"),
+    repoUrl: text("repoUrl").notNull(),
+    branch: text("branch"), // branch the agent was told to create
+    // running | needs_review (PR open) | merged | failed
+    status: text("status").notNull().default("running"),
+    prUrl: text("prUrl"),
+    prNumber: integer("prNumber"),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("CodeChangeRequest_meetingId_idx").on(t.meetingId)]
 );

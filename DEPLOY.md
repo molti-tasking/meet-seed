@@ -89,6 +89,31 @@ and kept in sync on later ones, with no manual step.
 > Postgres accepts connections — Coolify's restart policy handles this, but if
 > the first boot logs a connection error, give it a few seconds to retry.
 
+## 3b. Coding agent (optional, for meeting → PR)
+
+The merge-request feature uses **Anthropic Managed Agents** (beta — must be
+enabled on your Anthropic account). Run the one-time setup locally:
+
+```bash
+GITHUB_PAT=ghp_... ANTHROPIC_API_KEY=sk-ant-... npm run setup:agent
+```
+
+It prints `AGENT_ID`, `ENVIRONMENT_ID`, `VAULT_ID` — set those as runtime env vars
+on the app in Coolify.
+
+**GitHub connection — pick one:**
+- **GitHub App (preferred, per-meeting):** register an App (Contents + Pull
+  requests: write, Metadata: read), set its Setup URL to
+  `https://<your-domain>/api/github/app/callback` with "Redirect on update" on,
+  and set `GITHUB_APP_ID` / `GITHUB_APP_SLUG` / `GITHUB_APP_PRIVATE_KEY`. Each
+  room connects its own repo; tokens are short-lived and repo-scoped, nothing
+  long-lived is stored.
+- **Global PAT (fallback):** set `GITHUB_PAT` (Contents + Pull requests write) and
+  `VAULT_ID`; all rooms share it.
+
+If neither is configured the app still runs; the feature just returns "coding
+agent not configured." Repo source is cloned into Anthropic's hosted sandbox.
+
 ## 4. Deploy
 
 Click **Deploy** in Coolify. The build runs `next build`; the container then runs

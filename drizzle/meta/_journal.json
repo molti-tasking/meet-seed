@@ -8,6 +8,20 @@
       "when": 1781852484831,
       "tag": "0000_loose_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781877750762,
+      "tag": "0001_outstanding_mystique",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781878505566,
+      "tag": "0002_serious_darwin",
+      "breakpoints": true
     }
   ]
 }

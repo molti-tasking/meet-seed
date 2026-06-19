@@ -38,6 +38,7 @@ export default async function MeetingPage({
         title: meeting.title,
         roomName: meeting.roomName,
         githubRepoUrl: meeting.githubRepoUrl,
+        githubInstallationId: meeting.githubInstallationId,
         context: context.map((c) => ({
           id: c.id,
           type: c.type,

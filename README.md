@@ -26,8 +26,8 @@ concrete technical action items.
 | ✅ MVP | Context inputs: notes, reference links, connect a GitHub repo |
 | ✅ MVP | AI-generated technical action items from transcript + context (Claude) |
 | ✅ MVP | DOM interaction capture on an in-app shared surface (rrweb) |
-| 🔜 Next | Real-time automated code fixing on the linked repo |
-| 🔜 Next | Email-inbox context ingestion; GitHub OAuth app |
+| ✅ MVP | Kick off a coding agent that implements the action items and opens a PR (Anthropic Managed Agents), with one-click merge |
+| 🔜 Next | Email-inbox context ingestion; GitHub OAuth app for per-room repo connection |
 | 🔜 Next | Cross-origin external-site DOM capture (needs injected script / extension) |
 | 🔜 Next | Server-side LiveKit Agents transcription for recording-grade accuracy |
 
@@ -61,6 +61,34 @@ worker with the Deepgram plugin — is noted as future work.
 
 Next.js 16 (App Router) · TypeScript · Tailwind · LiveKit · Deepgram · Anthropic
 Claude (`claude-opus-4-8`) · Octokit · rrweb · Drizzle ORM + PostgreSQL.
+
+## Coding agent (meeting → merge request)
+
+From a meeting with action items and a connected GitHub repo, **Create merge
+request** kicks off an **Anthropic Managed Agents** session: it clones the repo
+into Anthropic's sandbox, implements the action items on a new branch, and opens
+a pull request. The panel polls until the PR is ready, then offers a one-click
+**Merge** (done server-side via the GitHub API — the agent never merges).
+
+One-time setup creates the persistent agent + environment:
+
+```bash
+npm run setup:agent   # prints AGENT_ID / ENVIRONMENT_ID / VAULT_ID
+```
+
+**Connecting GitHub per meeting (recommended):** register a **GitHub App**
+(Contents + Pull requests: write, Metadata: read) with its Setup URL pointed at
+`/api/github/app/callback`, and set `GITHUB_APP_ID` / `GITHUB_APP_SLUG` /
+`GITHUB_APP_PRIVATE_KEY`. Each room then has a **Connect GitHub App** button; on
+install we store the installation and mint a **short-lived, repo-scoped
+installation token per run** (held in an ephemeral per-run vault that's archived
+when the run finishes). No long-lived PAT is stored.
+
+**Fallback:** if no App is configured, set a global `GITHUB_PAT` + `VAULT_ID`
+(from `setup:agent`) and all rooms share that token.
+
+Requires the Managed Agents beta on your Anthropic account. Repo source is
+cloned into Anthropic's hosted sandbox.
 
 ## Setup
 

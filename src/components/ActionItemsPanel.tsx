@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CodeChangePanel } from "./CodeChangePanel";
 
 type ActionItem = {
   id: string;
@@ -98,6 +99,7 @@ export function ActionItemsPanel({
           );
         })}
       </div>
+      <CodeChangePanel meetingId={meetingId} hasItems={items.length > 0} />
     </div>
   );
 }
