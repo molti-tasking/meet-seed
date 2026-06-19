@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { recordUsage } from "@/lib/usage";
 
 // Single shared client; reads ANTHROPIC_API_KEY from the environment.
 const anthropic = new Anthropic();
@@ -68,6 +69,7 @@ function buildPrompt(bundle: MeetingContextBundle): string {
 }
 
 export async function generateActionItems(
+  meetingId: string,
   bundle: MeetingContextBundle
 ): Promise<GeneratedActionItem[]> {
   const response = await anthropic.messages.create({
@@ -76,6 +78,13 @@ export async function generateActionItems(
     thinking: { type: "adaptive" },
     output_config: { format: { type: "json_schema", schema: ACTION_ITEMS_SCHEMA } },
     messages: [{ role: "user", content: buildPrompt(bundle) }],
+  });
+
+  await recordUsage(meetingId, "action_items", MODEL, {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
   });
 
   const text = response.content
@@ -90,6 +99,7 @@ export async function generateActionItems(
 // Describe a screen-share frame for meeting context. Concise on purpose —
 // these get stored as context items the AI later reasons over.
 export async function describeScreen(
+  meetingId: string,
   base64: string,
   mediaType: string
 ): Promise<string> {
@@ -115,6 +125,13 @@ export async function describeScreen(
         ],
       },
     ],
+  });
+
+  await recordUsage(meetingId, "vision", MODEL, {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
   });
 
   return response.content

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, GitBranch, Loader2 } from "lucide-react";
+import { ArrowRight, BarChart3, GitBranch, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -91,13 +91,21 @@ export default function Home() {
           action items — that turn straight into your connected repositories
           pull requests.
         </p>
-        <Link
-          href="/help/github"
-          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-        >
-          <GitBranch className="size-4" /> How to connect a GitHub repository
-          <ArrowRight className="size-3.5" />
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm font-medium">
+          <Link
+            href="/help/github"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <GitBranch className="size-4" /> How to connect a GitHub repository
+            <ArrowRight className="size-3.5" />
+          </Link>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <BarChart3 className="size-4" /> AI usage dashboard
+          </Link>
+        </div>
 
         <Card className="mt-10">
           <CardHeader>

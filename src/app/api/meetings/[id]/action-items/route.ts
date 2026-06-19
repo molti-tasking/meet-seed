@@ -48,7 +48,7 @@ export async function POST(
 
   let generated;
   try {
-    generated = await generateActionItems({
+    generated = await generateActionItems(id, {
       title: meeting.title,
       transcript: transcript.map((t) => ({
         speakerLabel: t.speakerLabel,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { archiveVault, getSessionThread } from "@/lib/agents";
+import { recordUsage } from "@/lib/usage";
 
 // Poll a code-change request: fetch the agent's thread + lifecycle and persist
 // it (PR URL, pending question, or error). Returns the request + live thread.
@@ -45,10 +46,14 @@ export async function GET(
     );
   }
 
-  // The per-run vault is only needed while the agent is doing GitHub work; once
-  // it has opened a PR or given up, archive it. Keep it during needs_input.
-  if (request.vaultId && (thread.status === "needs_review" || thread.status === "failed")) {
-    await archiveVault(request.vaultId);
+  const wasActive = request.status === "running" || request.status === "needs_input";
+  const nowTerminalish = thread.status === "needs_review" || thread.status === "failed";
+
+  // On the transition into a terminal-ish state, record the agent's token usage
+  // (once) and archive the per-run vault.
+  if (wasActive && nowTerminalish) {
+    await recordUsage(id, "coding_agent", "claude-opus-4-8", thread.usage);
+    if (request.vaultId) await archiveVault(request.vaultId);
   }
 
   const [updated] = await db

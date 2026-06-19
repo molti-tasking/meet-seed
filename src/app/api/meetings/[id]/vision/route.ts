@@ -29,7 +29,7 @@ export async function POST(
 
   let description: string;
   try {
-    description = await describeScreen(match[2], match[1]);
+    description = await describeScreen(id, match[2], match[1]);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Vision request failed" },

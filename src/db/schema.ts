@@ -91,6 +91,27 @@ export const domRecordings = pgTable(
   (t) => [index("DomRecording_meetingId_idx").on(t.meetingId)]
 );
 
+// AI token usage + cost, one row per model call, attributed to a meeting.
+export const usageEvents = pgTable(
+  "UsageEvent",
+  {
+    id: id(),
+    meetingId: text("meetingId")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("anthropic"),
+    kind: text("kind").notNull(), // action_items | vision | coding_agent
+    model: text("model").notNull(),
+    inputTokens: integer("inputTokens").notNull().default(0),
+    outputTokens: integer("outputTokens").notNull().default(0),
+    cacheReadTokens: integer("cacheReadTokens").notNull().default(0),
+    cacheCreationTokens: integer("cacheCreationTokens").notNull().default(0),
+    costUsd: doublePrecision("costUsd").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("UsageEvent_meetingId_idx").on(t.meetingId)]
+);
+
 // A coding-agent run kicked off from a meeting: a Managed Agents session that
 // implements the meeting's action items and opens a pull request.
 export const codeChangeRequests = pgTable(

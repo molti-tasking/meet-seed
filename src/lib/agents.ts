@@ -148,11 +148,21 @@ export type SessionThread = {
   error?: string;
   question?: string;
   entries: ThreadEntry[];
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+  };
 };
 
 // List a session's events, build the activity thread, and derive its lifecycle.
 export async function getSessionThread(sessionId: string): Promise<SessionThread> {
   const session = await anthropic.beta.sessions.retrieve(sessionId);
+  const usage = {
+    inputTokens: session.usage?.input_tokens ?? 0,
+    outputTokens: session.usage?.output_tokens ?? 0,
+    cacheReadTokens: session.usage?.cache_read_input_tokens ?? 0,
+  };
 
   const entries: ThreadEntry[] = [];
   let allText = "";
@@ -190,18 +200,19 @@ export async function getSessionThread(sessionId: string): Promise<SessionThread
       prUrl,
       prNumber: numMatch ? Number(numMatch[1]) : undefined,
       entries,
+      usage,
     };
   }
 
-  if (running) return { status: "running", entries };
+  if (running) return { status: "running", entries, usage };
 
   const errMatch = allText.match(/PR_ERROR:\s*(.+)/);
   if (errMatch) {
-    return { status: "failed", error: errMatch[1].trim(), entries };
+    return { status: "failed", error: errMatch[1].trim(), entries, usage };
   }
 
   if (session.status === "terminated") {
-    return { status: "failed", error: "The agent session terminated.", entries };
+    return { status: "failed", error: "The agent session terminated.", entries, usage };
   }
 
   // Idle without a PR and without an explicit error → the agent is asking for
@@ -210,6 +221,7 @@ export async function getSessionThread(sessionId: string): Promise<SessionThread
     status: "needs_input",
     question: lastAgentMessage || "The agent is waiting for input.",
     entries,
+    usage,
   };
 }
 

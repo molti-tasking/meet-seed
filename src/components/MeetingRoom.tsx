@@ -15,6 +15,7 @@ import { ActionItemsPanel } from "./ActionItemsPanel";
 import { SharedSurface } from "./SharedSurface";
 import { AgentsPanel } from "./AgentsPanel";
 import { ScreenShareCapture } from "./ScreenShareCapture";
+import { UsageFooter } from "./UsageFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -144,6 +145,7 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
             </div>
           </div>
           <ControlBar />
+          <UsageFooter meetingId={meeting.id} />
         </div>
 
         {/* Right column: transcript over action items */}
