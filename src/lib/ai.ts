@@ -86,3 +86,40 @@ export async function generateActionItems(
   const parsed = JSON.parse(text) as { actionItems: GeneratedActionItem[] };
   return parsed.actionItems ?? [];
 }
+
+// Describe a screen-share frame for meeting context. Concise on purpose —
+// these get stored as context items the AI later reasons over.
+export async function describeScreen(
+  base64: string,
+  mediaType: string
+): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 400,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mediaType as "image/jpeg" | "image/png" | "image/webp",
+              data: base64,
+            },
+          },
+          {
+            type: "text",
+            text: "This is a screen shared during a software meeting. In 1-3 sentences, describe what is on screen for meeting context — the app or site, key content, any visible code, errors, data, or UI being discussed. Respond with only the description.",
+          },
+        ],
+      },
+    ],
+  });
+
+  return response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+}

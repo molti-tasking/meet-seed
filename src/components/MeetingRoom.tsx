@@ -13,6 +13,8 @@ import { TranscriptPanel } from "./TranscriptPanel";
 import { ContextSidebar } from "./ContextSidebar";
 import { ActionItemsPanel } from "./ActionItemsPanel";
 import { SharedSurface } from "./SharedSurface";
+import { AgentsPanel } from "./AgentsPanel";
+import { ScreenShareCapture } from "./ScreenShareCapture";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,7 +41,7 @@ type Meeting = {
   }[];
 };
 
-type Tab = "surface" | "context";
+type Tab = "surface" | "context" | "agents";
 
 export function MeetingRoom({ meeting }: { meeting: Meeting }) {
   const [name, setName] = useState("");
@@ -115,26 +117,30 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
           <div className="h-1/2 min-h-0 border-b border-border">
             <VideoGrid />
           </div>
+          <ScreenShareCapture meetingId={meeting.id} />
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex gap-1 border-b border-border px-2 pt-2">
               <TabButton active={tab === "context"} onClick={() => setTab("context")}>
                 Context
+              </TabButton>
+              <TabButton active={tab === "agents"} onClick={() => setTab("agents")}>
+                Agents
               </TabButton>
               <TabButton active={tab === "surface"} onClick={() => setTab("surface")}>
                 Shared surface
               </TabButton>
             </div>
             <div className="min-h-0 flex-1">
-              {tab === "context" ? (
+              {tab === "context" && (
                 <ContextSidebar
                   meetingId={meeting.id}
                   initialContext={meeting.context}
                   initialRepoUrl={meeting.githubRepoUrl}
                   githubInstallationId={meeting.githubInstallationId}
                 />
-              ) : (
-                <SharedSurface meetingId={meeting.id} />
               )}
+              {tab === "agents" && <AgentsPanel meetingId={meeting.id} />}
+              {tab === "surface" && <SharedSurface meetingId={meeting.id} />}
             </div>
           </div>
           <ControlBar />

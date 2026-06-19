@@ -1,0 +1,1 @@
+ALTER TABLE "CodeChangeRequest" ADD COLUMN "question" text;

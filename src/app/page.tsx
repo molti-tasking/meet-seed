@@ -25,6 +25,7 @@ export default function Home() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const [connectMode, setConnectMode] = useState<"none" | "url" | "app">("none");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -42,10 +43,23 @@ export default function Home() {
       const res = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, githubRepoUrl: repoUrl || undefined }),
+        body: JSON.stringify({
+          title,
+          githubRepoUrl: connectMode === "url" && repoUrl ? repoUrl : undefined,
+        }),
       });
       const data = await res.json();
-      if (res.ok) router.push(`/meeting/${data.meeting.roomName}`);
+      if (!res.ok) return;
+      // For the App option, open the GitHub install bound to the new meeting in
+      // a popup, then drop the user into the room (which picks up the install).
+      if (connectMode === "app") {
+        window.open(
+          `/api/github/app/connect?meetingId=${data.meeting.id}`,
+          "github-connect",
+          "popup,width=1024,height=720"
+        );
+      }
+      router.push(`/meeting/${data.meeting.roomName}`);
     } finally {
       setBusy(false);
     }
@@ -100,14 +114,52 @@ export default function Home() {
                 placeholder="Meeting title"
                 required
               />
-              <Input
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="GitHub repo (optional) — owner/repo"
-              />
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Connect a repository (optional)
+                </p>
+                <div className="inline-flex rounded-md border p-0.5">
+                  {(
+                    [
+                      ["none", "Skip"],
+                      ["url", "Paste URL"],
+                      ["app", "GitHub App"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setConnectMode(mode)}
+                      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                        connectMode === mode
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {connectMode === "url" && (
+                <Input
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="owner/repo or https://github.com/owner/repo"
+                />
+              )}
+              {connectMode === "app" && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <GitBranch className="size-3.5" />
+                  We&apos;ll open GitHub to install the app for write access right after
+                  creating the meeting.
+                </p>
+              )}
+
               <Button type="submit" disabled={busy} className="gap-2">
                 {busy && <Loader2 className="size-4 animate-spin" />}
-                {busy ? "Creating…" : "Create & join"}
+                {busy ? "Creating…" : connectMode === "app" ? "Create & connect" : "Create & join"}
               </Button>
             </form>
           </CardContent>

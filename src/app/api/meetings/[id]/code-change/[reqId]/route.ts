@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { archiveVault, getSessionResult } from "@/lib/agents";
+import { archiveVault, getSessionThread } from "@/lib/agents";
 
-// Poll a code-change request: if still running, ask Managed Agents for the
-// session status and persist the result (PR URL or error) when it finishes.
+// Poll a code-change request: fetch the agent's thread + lifecycle and persist
+// it (PR URL, pending question, or error). Returns the request + live thread.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string; reqId: string }> }
@@ -27,40 +27,41 @@ export async function GET(
   }
 
   // Terminal states need no further polling.
-  if (request.status !== "running") {
-    return NextResponse.json({ request });
+  if (request.status === "merged" || request.status === "failed") {
+    return NextResponse.json({ request, entries: [] });
   }
 
-  let result;
+  let thread;
   try {
-    result = await getSessionResult(request.sessionId);
+    thread = await getSessionThread(request.sessionId);
   } catch (err) {
     return NextResponse.json(
       {
         request,
+        entries: [],
         warning: err instanceof Error ? err.message : "Could not poll session",
       },
       { status: 200 }
     );
   }
 
-  if (result.status === "running") {
-    return NextResponse.json({ request });
+  // The per-run vault is only needed while the agent is doing GitHub work; once
+  // it has opened a PR or given up, archive it. Keep it during needs_input.
+  if (request.vaultId && (thread.status === "needs_review" || thread.status === "failed")) {
+    await archiveVault(request.vaultId);
   }
-
-  // Terminal: the per-run vault (if any) is no longer needed — archive it.
-  if (request.vaultId) await archiveVault(request.vaultId);
 
   const [updated] = await db
     .update(schema.codeChangeRequests)
     .set({
-      status: result.status,
-      prUrl: result.prUrl ?? null,
-      prNumber: result.prNumber ?? null,
-      error: result.error ?? null,
+      status: thread.status,
+      prUrl: thread.prUrl ?? null,
+      prNumber: thread.prNumber ?? null,
+      error: thread.error ?? null,
+      question: thread.question ?? null,
     })
     .where(eq(schema.codeChangeRequests.id, reqId))
     .returning();
 
-  return NextResponse.json({ request: updated });
+  return NextResponse.json({ request: updated, entries: thread.entries });
 }

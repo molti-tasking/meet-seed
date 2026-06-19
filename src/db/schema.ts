@@ -105,8 +105,10 @@ export const codeChangeRequests = pgTable(
     vaultId: text("vaultId"),
     repoUrl: text("repoUrl").notNull(),
     branch: text("branch"), // branch the agent was told to create
-    // running | needs_review (PR open) | merged | failed
+    // running | needs_input (agent asked) | needs_review (PR open) | merged | failed
     status: text("status").notNull().default("running"),
+    // The agent's pending question when status is needs_input.
+    question: text("question"),
     prUrl: text("prUrl"),
     prNumber: integer("prNumber"),
     error: text("error"),

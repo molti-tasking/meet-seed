@@ -130,40 +130,58 @@ export async function archiveVault(vaultId: string): Promise<void> {
   }
 }
 
-export type CodingSessionResult = {
-  status: "running" | "needs_review" | "failed";
+// One entry in the agent's live activity thread (for the Agents tab UI).
+export type ThreadEntry = {
+  id: string;
+  kind: "message" | "thinking" | "tool" | "status";
+  text: string;
+};
+
+export type SessionThread = {
+  // running        — actively working
+  // needs_input    — idle, asked a question / waiting on the human
+  // needs_review   — opened a PR
+  // failed         — gave up / terminated without a PR
+  status: "running" | "needs_input" | "needs_review" | "failed";
   prUrl?: string;
   prNumber?: number;
   error?: string;
+  question?: string;
+  entries: ThreadEntry[];
 };
 
-// Concatenate the text of every agent message emitted so far.
-async function collectAgentText(sessionId: string): Promise<string> {
-  let text = "";
-  for await (const event of anthropic.beta.sessions.events.list(sessionId)) {
-    if (event.type === "agent.message") {
-      for (const block of event.content) {
-        if (block.type === "text") text += block.text + "\n";
-      }
-    }
-  }
-  return text;
-}
-
-// Poll a session: map its lifecycle status onto our row status and, once the
-// agent has reported a result, extract the PR URL (or the error).
-export async function getSessionResult(
-  sessionId: string
-): Promise<CodingSessionResult> {
+// List a session's events, build the activity thread, and derive its lifecycle.
+export async function getSessionThread(sessionId: string): Promise<SessionThread> {
   const session = await anthropic.beta.sessions.retrieve(sessionId);
 
-  // Still working — keep polling.
-  if (session.status === "running" || session.status === "rescheduling") {
-    return { status: "running" };
+  const entries: ThreadEntry[] = [];
+  let allText = "";
+  let lastAgentMessage = "";
+
+  for await (const event of anthropic.beta.sessions.events.list(sessionId)) {
+    if (event.type === "agent.message") {
+      const text = event.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as { text: string }).text)
+        .join("");
+      if (text.trim()) {
+        entries.push({ id: event.id, kind: "message", text });
+        allText += text + "\n";
+        lastAgentMessage = text;
+      }
+    } else if (event.type === "agent.thinking") {
+      entries.push({ id: event.id, kind: "thinking", text: "Thinking…" });
+    } else if (
+      event.type === "agent.tool_use" ||
+      event.type === "agent.mcp_tool_use"
+    ) {
+      entries.push({ id: event.id, kind: "tool", text: "Used a tool" });
+    }
   }
 
-  const text = await collectAgentText(sessionId);
-  const urlMatch = text.match(/PR_URL:\s*(\S+)/);
+  const running = session.status === "running" || session.status === "rescheduling";
+
+  const urlMatch = allText.match(/PR_URL:\s*(\S+)/);
   if (urlMatch) {
     const prUrl = urlMatch[1];
     const numMatch = prUrl.match(/\/pull\/(\d+)/);
@@ -171,12 +189,37 @@ export async function getSessionResult(
       status: "needs_review",
       prUrl,
       prNumber: numMatch ? Number(numMatch[1]) : undefined,
+      entries,
     };
   }
 
-  const errMatch = text.match(/PR_ERROR:\s*(.+)/);
+  if (running) return { status: "running", entries };
+
+  const errMatch = allText.match(/PR_ERROR:\s*(.+)/);
+  if (errMatch) {
+    return { status: "failed", error: errMatch[1].trim(), entries };
+  }
+
+  if (session.status === "terminated") {
+    return { status: "failed", error: "The agent session terminated.", entries };
+  }
+
+  // Idle without a PR and without an explicit error → the agent is asking for
+  // input. Surface its last message as the pending question.
   return {
-    status: "failed",
-    error: errMatch ? errMatch[1].trim() : "Agent finished without opening a PR.",
+    status: "needs_input",
+    question: lastAgentMessage || "The agent is waiting for input.",
+    entries,
   };
+}
+
+// Send a message into a session — answers a question or steers a running run.
+// Managed Agents queues it and processes it in order.
+export async function sendToSession(
+  sessionId: string,
+  message: string
+): Promise<void> {
+  await anthropic.beta.sessions.events.send(sessionId, {
+    events: [{ type: "user.message", content: [{ type: "text", text: message }] }],
+  });
 }

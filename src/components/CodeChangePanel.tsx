@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 type CodeChangeRequest = {
   id: string;
-  status: "running" | "needs_review" | "merged" | "failed";
+  status: "running" | "needs_input" | "needs_review" | "merged" | "failed";
   branch: string | null;
   prUrl: string | null;
   prNumber: number | null;
@@ -15,6 +15,7 @@ type CodeChangeRequest = {
 
 const statusLabel: Record<CodeChangeRequest["status"], string> = {
   running: "Agent working…",
+  needs_input: "Needs your input → Agents tab",
   needs_review: "PR ready for review",
   merged: "Merged",
   failed: "Failed",
@@ -22,6 +23,7 @@ const statusLabel: Record<CodeChangeRequest["status"], string> = {
 
 const statusColor: Record<CodeChangeRequest["status"], string> = {
   running: "bg-primary/15 text-primary",
+  needs_input: "bg-amber-500/15 text-amber-500",
   needs_review: "bg-amber-500/15 text-amber-500",
   merged: "bg-secondary/20 text-secondary",
   failed: "bg-destructive/15 text-destructive",
@@ -65,7 +67,7 @@ export function CodeChangePanel({
   useEffect(() => {
     const interval = setInterval(() => {
       for (const r of requestsRef.current) {
-        if (r.status !== "running") continue;
+        if (r.status !== "running" && r.status !== "needs_input") continue;
         fetch(`/api/meetings/${meetingId}/code-change/${r.id}`)
           .then((res) => res.json())
           .then((d) => d.request && upsert(d.request))
