@@ -14,7 +14,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-type Meeting = { id: string; title: string; roomName: string; createdAt: string };
+type Meeting = {
+  id: string;
+  title: string;
+  roomName: string;
+  createdAt: string;
+};
 
 export default function Home() {
   const router = useRouter();
@@ -63,12 +68,14 @@ export default function Home() {
           seedlabs · meeting intelligence
         </p>
         <h1 className="font-heading mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
-          Meetings that <span className="gradient-text">capture themselves</span>
+          Tech meetings that{" "}
+          <span className="gradient-text">resolve themselves</span>
         </h1>
         <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-          Run a consulting meeting with live transcription, shared-surface recording,
-          attached context, and AI-generated technical action items — that turn straight
-          into pull requests.
+          Run a software specification meeting with live transcription,
+          shared-surface recording, attached context, and AI-generated technical
+          action items — that turn straight into your connected repositories
+          pull requests.
         </p>
         <Link
           href="/help/github"
