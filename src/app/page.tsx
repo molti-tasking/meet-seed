@@ -42,6 +42,9 @@ export default function Home() {
         Run a consulting meeting that captures itself — live transcription, shared-surface
         recording, attached context, and AI-generated technical action items.
       </p>
+      <a href="/help/github" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
+        How to connect a GitHub repository →
+      </a>
 
       <form onSubmit={create} className="mt-8 rounded-lg border border-neutral-800 p-5">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">

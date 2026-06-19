@@ -125,9 +125,19 @@ export function ContextSidebar({
         {busy === "github" ? "Inspecting…" : "Connect repo"}
       </button>
 
-      <label className="mb-1 block text-xs text-neutral-400">
-        GitHub App (write access for merge requests)
-      </label>
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-xs text-neutral-400">
+          GitHub App (write access for merge requests)
+        </label>
+        <a
+          href="/help/github"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] text-sky-400 hover:underline"
+        >
+          How to connect ↗
+        </a>
+      </div>
       {githubInstallationId ? (
         <span className="mb-4 self-start rounded bg-emerald-500/20 px-2 py-1 text-xs text-emerald-300">
           ✓ Connected
