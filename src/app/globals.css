@@ -1,26 +1,124 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-poppins);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.75rem;
+  /* Cold blue → teal → cyan palette (matches seedlabs.tech). */
+  --color-primary: #0ea5e9;
+  --color-secondary: #2dd4bf;
+  --brand-accent: #06b6d4;
+  --color-danger: #ef4444;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+
+  --background: var(--color-background);
+  --foreground: var(--color-neutral-900);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-neutral-800);
+  --popover: var(--color-background);
+  --popover-foreground: var(--color-neutral-900);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-background);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-neutral-900);
+  --muted: var(--color-neutral-100);
+  --muted-foreground: var(--color-neutral-600);
+  --accent: var(--color-neutral-100);
+  --accent-foreground: var(--color-neutral-900);
+  --destructive: var(--color-danger);
+  --border: var(--color-neutral-200);
+  --input: var(--color-neutral-50);
+  --ring: var(--color-primary);
+}
+
+.dark {
+  --color-background: var(--color-neutral-900);
+  --color-surface: var(--color-neutral-800);
+
+  --background: var(--color-neutral-900);
+  --foreground: var(--color-neutral-50);
+  --card: var(--color-neutral-800);
+  --card-foreground: var(--color-neutral-100);
+  --popover: var(--color-neutral-800);
+  --popover-foreground: var(--color-neutral-50);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-neutral-900);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-neutral-900);
+  --muted: var(--color-neutral-800);
+  --muted-foreground: var(--color-neutral-400);
+  --accent: var(--color-neutral-700);
+  --accent-foreground: var(--color-neutral-100);
+  --destructive: var(--color-danger);
+  --border: var(--color-neutral-700);
+  --input: var(--color-neutral-800);
+  --ring: var(--color-primary);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  html {
+    scroll-behavior: smooth;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .gradient-text {
+    background: linear-gradient(
+      135deg,
+      var(--color-primary) 0%,
+      var(--color-secondary) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .font-heading {
+    font-family: var(--font-poppins), var(--font-sans);
+  }
 }

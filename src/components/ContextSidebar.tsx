@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, GitBranch, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 type ContextItem = { id: string; type: string; content: string };
 
@@ -22,6 +27,30 @@ export function ContextSidebar({
   const [repoToken, setRepoToken] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(Boolean(githubInstallationId));
+
+  // The "Connect GitHub App" popup signals success via postMessage.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.origin === window.location.origin && e.data?.type === "github-app-connected") {
+        setConnected(true);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  function openConnect() {
+    const w = 1024;
+    const h = 720;
+    const left = window.screenX + (window.outerWidth - w) / 2;
+    const top = window.screenY + (window.outerHeight - h) / 2;
+    window.open(
+      `/api/github/app/connect?meetingId=${meetingId}`,
+      "github-connect",
+      `popup,width=${w},height=${h},left=${left},top=${top}`
+    );
+  }
 
   async function addItem(type: "note" | "link", content: string, clear: () => void) {
     if (!content.trim()) return;
@@ -66,101 +95,110 @@ export function ContextSidebar({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Context
       </h2>
 
-      {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
-      <label className="mb-1 block text-xs text-neutral-400">Note</label>
-      <textarea
+      <label className="mb-1 block text-xs text-muted-foreground">Note</label>
+      <Textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
-        className="mb-1 w-full rounded bg-neutral-800 p-2 text-sm text-neutral-100"
+        className="mb-2"
         placeholder="Drop a note for this meeting…"
       />
-      <button
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={() => addItem("note", note, () => setNote(""))}
         disabled={busy === "note"}
-        className="mb-4 self-start rounded bg-neutral-700 px-3 py-1 text-xs hover:bg-neutral-600 disabled:opacity-50"
+        className="mb-4 self-start"
       >
         Add note
-      </button>
+      </Button>
 
-      <label className="mb-1 block text-xs text-neutral-400">Reference link</label>
-      <input
+      <label className="mb-1 block text-xs text-muted-foreground">Reference link</label>
+      <Input
         value={link}
         onChange={(e) => setLink(e.target.value)}
-        className="mb-1 w-full rounded bg-neutral-800 p-2 text-sm text-neutral-100"
+        className="mb-2"
         placeholder="https://…"
       />
-      <button
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={() => addItem("link", link, () => setLink(""))}
         disabled={busy === "link"}
-        className="mb-4 self-start rounded bg-neutral-700 px-3 py-1 text-xs hover:bg-neutral-600 disabled:opacity-50"
+        className="mb-4 self-start"
       >
         Add link
-      </button>
+      </Button>
 
-      <label className="mb-1 block text-xs text-neutral-400">GitHub repository</label>
-      <input
+      <label className="mb-1 block text-xs text-muted-foreground">GitHub repository</label>
+      <Input
         value={repoUrl}
         onChange={(e) => setRepoUrl(e.target.value)}
-        className="mb-1 w-full rounded bg-neutral-800 p-2 text-sm text-neutral-100"
+        className="mb-2"
         placeholder="owner/repo or https://github.com/owner/repo"
       />
-      <input
+      <Input
         value={repoToken}
         onChange={(e) => setRepoToken(e.target.value)}
-        className="mb-1 w-full rounded bg-neutral-800 p-2 text-sm text-neutral-100"
-        placeholder="Optional GitHub token (for private repos)"
+        className="mb-2"
+        placeholder="Optional token (for private repos)"
         type="password"
       />
-      <button
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={inspectRepo}
         disabled={busy === "github"}
-        className="mb-4 self-start rounded bg-neutral-700 px-3 py-1 text-xs hover:bg-neutral-600 disabled:opacity-50"
+        className="mb-4 self-start gap-2"
       >
+        {busy === "github" && <Loader2 className="size-3.5 animate-spin" />}
         {busy === "github" ? "Inspecting…" : "Connect repo"}
-      </button>
+      </Button>
 
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-xs text-neutral-400">
-          GitHub App (write access for merge requests)
+        <label className="text-xs text-muted-foreground">
+          GitHub App (write access)
         </label>
         <a
           href="/help/github"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[11px] text-sky-400 hover:underline"
+          className="text-[11px] text-primary hover:underline"
         >
           How to connect ↗
         </a>
       </div>
-      {githubInstallationId ? (
-        <span className="mb-4 self-start rounded bg-emerald-500/20 px-2 py-1 text-xs text-emerald-300">
-          ✓ Connected
-        </span>
+      {connected ? (
+        <Badge variant="secondary" className="mb-4 gap-1">
+          <CheckCircle2 className="size-3" /> Connected
+        </Badge>
       ) : (
-        <a
-          href={`/api/github/app/connect?meetingId=${meetingId}`}
-          className="mb-4 self-start rounded bg-neutral-700 px-3 py-1 text-xs hover:bg-neutral-600"
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={openConnect}
+          className="mb-4 self-start gap-2"
         >
-          Connect GitHub App
-        </a>
+          <GitBranch className="size-3.5" /> Connect GitHub App
+        </Button>
       )}
 
-      <h3 className="mb-2 mt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+      <h3 className="mb-2 mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Attached ({items.length})
       </h3>
       <ul className="space-y-2">
         {items.map((item) => (
-          <li key={item.id} className="rounded bg-neutral-800 p-2 text-xs">
-            <span className="mr-2 rounded bg-neutral-700 px-1.5 py-0.5 uppercase text-neutral-300">
+          <li key={item.id} className="rounded-md border bg-card p-2 text-xs">
+            <Badge variant="outline" className="mr-2 uppercase">
               {item.type}
-            </span>
-            <span className="text-neutral-300">
+            </Badge>
+            <span className="text-card-foreground">
               {item.content.length > 140 ? `${item.content.slice(0, 140)}…` : item.content}
             </span>
           </li>

@@ -7,11 +7,21 @@ import {
   RoomAudioRenderer,
   ControlBar,
 } from "@livekit/components-react";
+import { Loader2 } from "lucide-react";
 import { VideoGrid } from "./VideoGrid";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { ContextSidebar } from "./ContextSidebar";
 import { ActionItemsPanel } from "./ActionItemsPanel";
 import { SharedSurface } from "./SharedSurface";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 type Meeting = {
   id: string;
@@ -36,47 +46,54 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [joining, setJoining] = useState(false);
   const [tab, setTab] = useState<Tab>("context");
 
   async function join(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch("/api/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roomName: meeting.roomName, name: name || "Guest" }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Could not join");
-      return;
+    setJoining(true);
+    try {
+      const res = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomName: meeting.roomName, name: name || "Guest" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not join");
+        return;
+      }
+      setToken(data.token);
+      setServerUrl(data.serverUrl);
+    } finally {
+      setJoining(false);
     }
-    setToken(data.token);
-    setServerUrl(data.serverUrl);
   }
 
   if (!token || !serverUrl) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-        <form onSubmit={join} className="w-80 rounded-lg border border-neutral-800 p-6">
-          <h1 className="mb-1 text-lg font-semibold">{meeting.title}</h1>
-          <p className="mb-4 text-sm text-neutral-400">Join the meeting room.</p>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            className="mb-3 w-full rounded bg-neutral-800 px-3 py-2 text-sm"
-          />
-          {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
-          <button className="w-full rounded bg-sky-600 px-3 py-2 text-sm font-medium hover:bg-sky-500">
-            Join
-          </button>
-          {!serverUrl && error?.includes("not configured") && (
-            <p className="mt-3 text-xs text-neutral-500">
-              Set LiveKit credentials in .env to enable video.
-            </p>
-          )}
-        </form>
+      <div className="dark flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle className="font-heading">{meeting.title}</CardTitle>
+            <CardDescription>Join the meeting room.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={join} className="space-y-3">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+              />
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <Button type="submit" disabled={joining} className="w-full gap-2">
+                {joining && <Loader2 className="size-4 animate-spin" />}
+                {joining ? "Joining…" : "Join"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -89,17 +106,17 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
       audio
       video
       data-lk-theme="default"
-      className="h-screen"
+      className="dark h-screen"
     >
       <RoomAudioRenderer />
-      <div className="grid h-screen grid-cols-[1fr_360px] grid-rows-[1fr_auto] bg-neutral-950 text-neutral-100">
+      <div className="grid h-screen grid-cols-[1fr_380px] grid-rows-[1fr_auto] bg-background text-foreground">
         {/* Main column: video + shared surface / context tabs */}
         <div className="row-span-2 flex flex-col overflow-hidden">
-          <div className="h-1/2 min-h-0 border-b border-neutral-800">
+          <div className="h-1/2 min-h-0 border-b border-border">
             <VideoGrid />
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex gap-1 border-b border-neutral-800 px-2 pt-2">
+            <div className="flex gap-1 border-b border-border px-2 pt-2">
               <TabButton active={tab === "context"} onClick={() => setTab("context")}>
                 Context
               </TabButton>
@@ -124,8 +141,8 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
         </div>
 
         {/* Right column: transcript over action items */}
-        <div className="flex min-h-0 flex-col border-l border-neutral-800">
-          <div className="h-1/2 min-h-0 border-b border-neutral-800">
+        <div className="flex min-h-0 flex-col border-l border-border">
+          <div className="h-1/2 min-h-0 border-b border-border">
             <TranscriptPanel meetingId={meeting.id} />
           </div>
           <div className="h-1/2 min-h-0">
@@ -149,8 +166,10 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`rounded-t px-3 py-1.5 text-xs font-medium ${
-        active ? "bg-neutral-800 text-neutral-100" : "text-neutral-400 hover:text-neutral-200"
+      className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? "bg-card text-foreground"
+          : "text-muted-foreground hover:text-foreground"
       }`}
     >
       {children}

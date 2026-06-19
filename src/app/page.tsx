@@ -2,6 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, GitBranch, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 type Meeting = { id: string; title: string; roomName: string; createdAt: string };
 
@@ -36,61 +47,87 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16 text-neutral-100">
-      <h1 className="text-2xl font-bold">Meeting Intelligence</h1>
-      <p className="mt-2 text-neutral-400">
-        Run a consulting meeting that captures itself — live transcription, shared-surface
-        recording, attached context, and AI-generated technical action items.
-      </p>
-      <a href="/help/github" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
-        How to connect a GitHub repository →
-      </a>
+    <div className="relative min-h-screen overflow-hidden">
+      {/* Soft brand backdrop */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(40rem 40rem at 85% -10%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent), radial-gradient(35rem 35rem at 10% 10%, color-mix(in srgb, var(--color-secondary) 14%, transparent), transparent)",
+        }}
+      />
 
-      <form onSubmit={create} className="mt-8 rounded-lg border border-neutral-800 p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
-          New meeting
-        </h2>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Meeting title"
-          className="mb-3 w-full rounded bg-neutral-800 px-3 py-2 text-sm"
-          required
-        />
-        <input
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          placeholder="GitHub repo (optional) — owner/repo"
-          className="mb-3 w-full rounded bg-neutral-800 px-3 py-2 text-sm"
-        />
-        <button
-          disabled={busy}
-          className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
+      <main className="mx-auto max-w-2xl px-6 py-20">
+        <p className="font-heading text-xs font-semibold uppercase tracking-widest text-primary">
+          seedlabs · meeting intelligence
+        </p>
+        <h1 className="font-heading mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+          Meetings that <span className="gradient-text">capture themselves</span>
+        </h1>
+        <p className="mt-4 max-w-xl text-lg text-muted-foreground">
+          Run a consulting meeting with live transcription, shared-surface recording,
+          attached context, and AI-generated technical action items — that turn straight
+          into pull requests.
+        </p>
+        <Link
+          href="/help/github"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
-          {busy ? "Creating…" : "Create & join"}
-        </button>
-      </form>
+          <GitBranch className="size-4" /> How to connect a GitHub repository
+          <ArrowRight className="size-3.5" />
+        </Link>
 
-      {meetings.length > 0 && (
-        <div className="mt-10">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
-            Recent meetings
-          </h2>
-          <ul className="space-y-2">
-            {meetings.map((m) => (
-              <li key={m.id}>
-                <a
+        <Card className="mt-10">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg">New meeting</CardTitle>
+            <CardDescription>
+              Spin up a room and invite participants by sharing the link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={create} className="space-y-3">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Meeting title"
+                required
+              />
+              <Input
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="GitHub repo (optional) — owner/repo"
+              />
+              <Button type="submit" disabled={busy} className="gap-2">
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                {busy ? "Creating…" : "Create & join"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {meetings.length > 0 && (
+          <div className="mt-10">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Recent meetings
+            </h2>
+            <div className="space-y-2">
+              {meetings.map((m) => (
+                <Link
+                  key={m.id}
                   href={`/meeting/${m.roomName}`}
-                  className="block rounded border border-neutral-800 px-4 py-2 text-sm hover:bg-neutral-900"
+                  className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-accent"
                 >
-                  {m.title}
-                  <span className="ml-2 text-xs text-neutral-500">{m.roomName}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </main>
+                  <span className="font-medium">{m.title}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {m.roomName}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

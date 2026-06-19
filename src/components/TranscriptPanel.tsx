@@ -91,23 +91,23 @@ export function TranscriptPanel({ meetingId }: { meetingId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <h2 className="border-b border-neutral-800 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+      <h2 className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Live transcript
       </h2>
       <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
         {finals.length === 0 && liveInterims.length === 0 && (
-          <p className="text-neutral-500">Start speaking — transcription appears here.</p>
+          <p className="text-muted-foreground">Start speaking — transcription appears here.</p>
         )}
         {finals.map((line) => (
           <p key={line.id}>
-            <span className="font-medium text-sky-400">{line.name}: </span>
-            <span className="text-neutral-200">{line.text}</span>
+            <span className="font-medium text-primary">{line.name}: </span>
+            <span className="text-foreground">{line.text}</span>
           </p>
         ))}
         {liveInterims.map(([identity, v]) => (
           <p key={`interim-${identity}`} className="opacity-60">
-            <span className="font-medium text-sky-400">{v.name}: </span>
-            <span className="italic text-neutral-300">{v.text}</span>
+            <span className="font-medium text-primary">{v.name}: </span>
+            <span className="italic text-muted-foreground">{v.text}</span>
           </p>
         ))}
       </div>

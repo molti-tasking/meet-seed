@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { CodeChangePanel } from "./CodeChangePanel";
 
 type ActionItem = {
@@ -12,9 +14,9 @@ type ActionItem = {
 };
 
 const priorityColor: Record<string, string> = {
-  high: "bg-red-500/20 text-red-300",
-  medium: "bg-amber-500/20 text-amber-300",
-  low: "bg-emerald-500/20 text-emerald-300",
+  high: "bg-destructive/15 text-destructive",
+  medium: "bg-amber-500/15 text-amber-500",
+  low: "bg-secondary/20 text-secondary",
 };
 
 export function ActionItemsPanel({
@@ -47,22 +49,23 @@ export function ActionItemsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Action items
         </h2>
-        <button
-          onClick={generate}
-          disabled={busy}
-          className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50"
-        >
+        <Button size="sm" onClick={generate} disabled={busy} className="gap-1.5">
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="size-3.5" />
+          )}
           {busy ? "Generating…" : "Generate"}
-        </button>
+        </Button>
       </div>
-      {error && <p className="px-4 py-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="px-4 py-2 text-xs text-destructive">{error}</p>}
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {items.length === 0 && (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted-foreground">
             Generate technical action items from the transcript and context.
           </p>
         )}
@@ -74,7 +77,7 @@ export function ActionItemsPanel({
             /* ignore */
           }
           return (
-            <div key={item.id} className="rounded border border-neutral-800 p-3">
+            <div key={item.id} className="rounded-lg border bg-card p-3">
               <div className="mb-1 flex items-center gap-2">
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
@@ -83,13 +86,13 @@ export function ActionItemsPanel({
                 >
                   {item.priority}
                 </span>
-                <h3 className="text-sm font-medium text-neutral-100">{item.title}</h3>
+                <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
               </div>
-              <p className="text-xs text-neutral-300">{item.description}</p>
+              <p className="text-xs text-muted-foreground">{item.description}</p>
               {refs.length > 0 && (
                 <ul className="mt-2 space-y-0.5">
                   {refs.map((r) => (
-                    <li key={r} className="font-mono text-[11px] text-sky-400">
+                    <li key={r} className="font-mono text-[11px] text-primary">
                       {r}
                     </li>
                   ))}

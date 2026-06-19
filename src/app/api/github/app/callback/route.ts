@@ -33,5 +33,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
-  return NextResponse.redirect(new URL(`/meeting/${meeting.roomName}`, url.origin));
+  // The connect flow runs in a popup; land on a page that signals the opener and
+  // closes itself (falls back to a link back into the meeting).
+  return NextResponse.redirect(
+    new URL(`/github/connected?room=${encodeURIComponent(meeting.roomName)}`, url.origin)
+  );
 }

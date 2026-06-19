@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { GitPullRequest, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type CodeChangeRequest = {
   id: string;
@@ -19,10 +21,10 @@ const statusLabel: Record<CodeChangeRequest["status"], string> = {
 };
 
 const statusColor: Record<CodeChangeRequest["status"], string> = {
-  running: "bg-sky-500/20 text-sky-300",
-  needs_review: "bg-amber-500/20 text-amber-300",
-  merged: "bg-emerald-500/20 text-emerald-300",
-  failed: "bg-red-500/20 text-red-300",
+  running: "bg-primary/15 text-primary",
+  needs_review: "bg-amber-500/15 text-amber-500",
+  merged: "bg-secondary/20 text-secondary",
+  failed: "bg-destructive/15 text-destructive",
 };
 
 export function CodeChangePanel({
@@ -47,7 +49,6 @@ export function CodeChangePanel({
     });
   }, []);
 
-  // Load existing requests on mount.
   useEffect(() => {
     fetch(`/api/meetings/${meetingId}/code-change`)
       .then((r) => r.json())
@@ -110,57 +111,67 @@ export function CodeChangePanel({
   }
 
   return (
-    <div className="border-t border-neutral-800 p-4">
+    <div className="border-t border-border p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Merge requests
         </h3>
-        <button
+        <Button
+          size="sm"
+          variant="secondary"
           onClick={createRequest}
           disabled={busy || !hasItems}
           title={hasItems ? "" : "Generate action items first"}
-          className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium hover:bg-emerald-500 disabled:opacity-50"
+          className="gap-1.5"
         >
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <GitPullRequest className="size-3.5" />
+          )}
           {busy ? "Starting…" : "Create from action items"}
-        </button>
+        </Button>
       </div>
-      {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
       {requests.length === 0 ? (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted-foreground">
           Kick off a coding agent to implement the action items and open a PR.
         </p>
       ) : (
         <ul className="max-h-40 space-y-2 overflow-y-auto">
           {requests.map((r) => (
-            <li key={r.id} className="rounded border border-neutral-800 p-2 text-xs">
+            <li key={r.id} className="rounded-md border bg-card p-2 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusColor[r.status]}`}>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusColor[r.status]}`}
+                >
                   {statusLabel[r.status]}
                 </span>
                 {r.status === "needs_review" && (
-                  <button
+                  <Button
+                    size="sm"
                     onClick={() => merge(r.id)}
                     disabled={merging === r.id}
-                    className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-medium hover:bg-emerald-500 disabled:opacity-50"
+                    className="h-6 px-2 text-[10px]"
                   >
                     {merging === r.id ? "Merging…" : "Merge"}
-                  </button>
+                  </Button>
                 )}
               </div>
               {r.branch && (
-                <p className="mt-1 font-mono text-[10px] text-neutral-500">{r.branch}</p>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground">{r.branch}</p>
               )}
               {r.prUrl && (
                 <a
                   href={r.prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 block break-all text-sky-400 hover:underline"
+                  className="mt-1 block break-all text-primary hover:underline"
                 >
                   {r.prUrl}
                 </a>
               )}
-              {r.error && <p className="mt-1 text-red-400">{r.error}</p>}
+              {r.error && <p className="mt-1 text-destructive">{r.error}</p>}
             </li>
           ))}
         </ul>

@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const poppins = Poppins({
   subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-poppins",
+  display: "swap",
 });
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Meeting Intelligence",
-  description: "Self-capturing consulting meetings: transcription, context, and AI action items",
+  description:
+    "Self-capturing consulting meetings: transcription, context, and AI action items",
 };
 
 export default function RootLayout({
@@ -25,11 +29,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${poppins.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
-        {children}
-      </body>
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }

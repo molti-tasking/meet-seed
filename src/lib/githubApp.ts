@@ -49,10 +49,19 @@ export function verifyState(state: string): string | null {
     : null;
 }
 
+// Normalize the slug in case GITHUB_APP_SLUG was set to the full app URL
+// (e.g. "https://github.com/apps/my-app") rather than just "my-app".
+function appSlug(): string {
+  return (APP_SLUG ?? "")
+    .replace(/^https?:\/\/github\.com\/apps\//i, "")
+    .replace(/\/.*$/, "")
+    .trim();
+}
+
 // GitHub's "install this app" page; on completion GitHub redirects to the app's
 // configured Setup URL with installation_id + our state.
 export function getInstallUrl(meetingId: string): string {
-  return `https://github.com/apps/${APP_SLUG}/installations/new?state=${encodeURIComponent(
+  return `https://github.com/apps/${appSlug()}/installations/new?state=${encodeURIComponent(
     signState(meetingId)
   )}`;
 }
