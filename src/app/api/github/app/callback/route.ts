@@ -34,8 +34,10 @@ export async function GET(req: Request) {
   }
 
   // The connect flow runs in a popup; land on a page that signals the opener and
-  // closes itself (falls back to a link back into the meeting).
+  // closes itself. Use APP_URL when set, since behind a reverse proxy the request
+  // origin can resolve to the internal host (localhost:3000).
+  const base = process.env.APP_URL || url.origin;
   return NextResponse.redirect(
-    new URL(`/github/connected?room=${encodeURIComponent(meeting.roomName)}`, url.origin)
+    new URL(`/github/connected?room=${encodeURIComponent(meeting.roomName)}`, base)
   );
 }

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CodeChangePanel } from "./CodeChangePanel";
 
 type ActionItem = {
   id: string;
@@ -22,11 +21,9 @@ const priorityColor: Record<string, string> = {
 export function ActionItemsPanel({
   meetingId,
   initialItems,
-  showCodeChanges = true,
 }: {
   meetingId: string;
   initialItems: ActionItem[];
-  showCodeChanges?: boolean;
 }) {
   const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [busy, setBusy] = useState(false);
@@ -104,9 +101,6 @@ export function ActionItemsPanel({
           );
         })}
       </div>
-      {showCodeChanges && (
-        <CodeChangePanel meetingId={meetingId} hasItems={items.length > 0} />
-      )}
     </div>
   );
 }

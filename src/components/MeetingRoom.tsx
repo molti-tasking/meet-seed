@@ -201,11 +201,7 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
           <TranscriptPanel meetingId={meeting.id} />
         </div>
         <div className="h-1/2 min-h-0">
-          <ActionItemsPanel
-            meetingId={meeting.id}
-            initialItems={meeting.actionItems}
-            showCodeChanges={technical}
-          />
+          <ActionItemsPanel meetingId={meeting.id} initialItems={meeting.actionItems} />
         </div>
       </div>
     </div>

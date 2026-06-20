@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Bot,
   CircleDot,
   GitMerge,
   Loader2,
@@ -36,6 +37,8 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
   const [threads, setThreads] = useState<Record<string, ThreadEntry[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const upsert = useCallback((r: Req) => {
     setReqs((prev) => {
@@ -111,15 +114,42 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
     }
   }
 
+  async function start() {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/code-change`, {
+        method: "POST",
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Failed to start");
+      upsert(d.request);
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : "Failed to start");
+    } finally {
+      setStarting(false);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Coding agents
-      </h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Coding agents
+        </h2>
+        <Button size="sm" onClick={start} disabled={starting} className="gap-1.5">
+          {starting ? <Loader2 className="size-3.5 animate-spin" /> : <Bot className="size-3.5" />}
+          Start coding agent
+        </Button>
+      </div>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        Spins up an agent that implements the meeting&apos;s action items against the
+        connected repo. Each run is a thread here; pull requests result from it.
+      </p>
+      {startError && <p className="mb-3 text-xs text-destructive">{startError}</p>}
       {reqs.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Start a coding agent from the Action items panel. Its progress,
-          questions, and pull request show up here.
+          No agent runs yet. Connect a repo and generate action items, then start one.
         </p>
       ) : (
         <div className="space-y-4">

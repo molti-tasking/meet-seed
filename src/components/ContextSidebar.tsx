@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, GitBranch, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 type ContextItem = { id: string; type: string; content: string };
+type Repo = { fullName: string; htmlUrl: string };
 
 export function ContextSidebar({
   meetingId,
@@ -26,28 +27,24 @@ export function ContextSidebar({
   const [note, setNote] = useState("");
   const [link, setLink] = useState("");
   const [repoUrl, setRepoUrl] = useState(initialRepoUrl ?? "");
-  const [repoToken, setRepoToken] = useState("");
+  const [manualRepo, setManualRepo] = useState("");
+  const [repos, setRepos] = useState<Repo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(Boolean(githubInstallationId));
   const [chunks, setChunks] = useState(codebaseChunks);
 
-  async function indexCodebase() {
-    setBusy("index");
-    setError(null);
-    try {
-      const res = await fetch(`/api/meetings/${meetingId}/index-codebase`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Indexing failed");
-      setChunks(data.chunks);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Indexing failed");
-    } finally {
-      setBusy(null);
-    }
-  }
+  const loadRepos = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}/github/repos`)
+      .then((r) => r.json())
+      .then((d) => setRepos(d.repos ?? []))
+      .catch(() => {});
+  }, [meetingId]);
+
+  // Load the installation's repos whenever the App is connected.
+  useEffect(() => {
+    if (connected) loadRepos();
+  }, [connected, loadRepos]);
 
   // The "Connect GitHub App" popup signals success via postMessage.
   useEffect(() => {
@@ -72,6 +69,43 @@ export function ContextSidebar({
     );
   }
 
+  // Set which repo this meeting works with.
+  async function setRepo(url: string) {
+    setBusy("repo");
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ githubRepoUrl: url }),
+      });
+      if (!res.ok) throw new Error("Could not set the repository");
+      setRepoUrl(url);
+      setChunks(0); // a new repo needs re-indexing
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not set the repository");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function indexCodebase() {
+    setBusy("index");
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/index-codebase`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Indexing failed");
+      setChunks(data.chunks);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Indexing failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function addItem(type: "note" | "link", content: string, clear: () => void) {
     if (!content.trim()) return;
     setBusy(type);
@@ -93,34 +127,118 @@ export function ContextSidebar({
     }
   }
 
-  async function inspectRepo() {
-    if (!repoUrl.trim()) return;
-    setBusy("github");
-    setError(null);
-    try {
-      const res = await fetch("/api/github/inspect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meetingId, repoUrl, token: repoToken || undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to inspect repo");
-      setItems((prev) => [...prev, data.item]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to inspect repo");
-    } finally {
-      setBusy(null);
-    }
-  }
+  const selectedRepo =
+    repos.find((r) => repoUrl && (repoUrl === r.fullName || repoUrl === r.htmlUrl))
+      ?.fullName ?? "";
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Context
-      </h2>
+      {error && <p className="mb-3 text-xs text-destructive">{error}</p>}
 
-      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+      {/* --- Repository (primary) --- */}
+      <div className="mb-5 rounded-lg border bg-card p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Repository
+          </h2>
+          <a
+            href="/help/github"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-primary hover:underline"
+          >
+            How it works ↗
+          </a>
+        </div>
 
+        {connected ? (
+          <>
+            <Badge variant="secondary" className="mb-2 gap-1">
+              <CheckCircle2 className="size-3" /> GitHub App connected
+            </Badge>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Repository for this meeting
+            </label>
+            {repos.length > 0 ? (
+              <select
+                value={selectedRepo}
+                onChange={(e) => setRepo(e.target.value)}
+                disabled={busy === "repo"}
+                className="mb-1 h-9 w-full rounded-md border border-input bg-input/30 px-2 text-sm"
+              >
+                <option value="">Select a repository…</option>
+                {repos.map((r) => (
+                  <option key={r.fullName} value={r.fullName}>
+                    {r.fullName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-muted-foreground">Loading repositories…</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Install the GitHub App so coding agents can read the repo and open pull
+              requests.
+            </p>
+            <Button size="sm" onClick={openConnect} className="gap-2">
+              <GitBranch className="size-3.5" /> Connect GitHub App
+            </Button>
+            <details className="mt-3">
+              <summary className="cursor-pointer text-[11px] text-muted-foreground">
+                Or use a public repo without the App
+              </summary>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={manualRepo}
+                  onChange={(e) => setManualRepo(e.target.value)}
+                  placeholder="owner/repo"
+                  className="h-8"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setRepo(manualRepo)}
+                  disabled={!manualRepo.trim() || busy === "repo"}
+                >
+                  Use
+                </Button>
+              </div>
+            </details>
+          </>
+        )}
+
+        {repoUrl && (
+          <div className="mt-3 border-t border-border pt-3">
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Codebase index (precise agent specs)
+            </label>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={indexCodebase}
+                disabled={busy === "index"}
+                className="gap-1.5"
+              >
+                {busy === "index" && <Loader2 className="size-3.5 animate-spin" />}
+                {busy === "index"
+                  ? "Indexing…"
+                  : chunks > 0
+                    ? "Re-index"
+                    : "Index codebase"}
+              </Button>
+              {chunks > 0 && (
+                <span className="text-[11px] text-muted-foreground">{chunks} chunks</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- Notes & links --- */}
       <label className="mb-1 block text-xs text-muted-foreground">Note</label>
       <Textarea
         value={note}
@@ -151,86 +269,18 @@ export function ContextSidebar({
         variant="secondary"
         onClick={() => addItem("link", link, () => setLink(""))}
         disabled={busy === "link"}
-        className="mb-4 self-start"
+        className="mb-5 self-start"
       >
         Add link
       </Button>
 
-      <label className="mb-1 block text-xs text-muted-foreground">GitHub repository</label>
-      <Input
-        value={repoUrl}
-        onChange={(e) => setRepoUrl(e.target.value)}
-        className="mb-2"
-        placeholder="owner/repo or https://github.com/owner/repo"
-      />
-      <Input
-        value={repoToken}
-        onChange={(e) => setRepoToken(e.target.value)}
-        className="mb-2"
-        placeholder="Optional token (for private repos)"
-        type="password"
-      />
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={inspectRepo}
-        disabled={busy === "github"}
-        className="mb-4 self-start gap-2"
-      >
-        {busy === "github" && <Loader2 className="size-3.5 animate-spin" />}
-        {busy === "github" ? "Inspecting…" : "Connect repo"}
-      </Button>
-
-      <label className="mb-1 block text-xs text-muted-foreground">
-        Codebase index (for precise agent specs)
-      </label>
-      <div className="mb-4 flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={indexCodebase}
-          disabled={busy === "index"}
-          className="gap-1.5"
-        >
-          {busy === "index" && <Loader2 className="size-3.5 animate-spin" />}
-          {busy === "index" ? "Indexing…" : chunks > 0 ? "Re-index codebase" : "Index codebase"}
-        </Button>
-        {chunks > 0 && (
-          <span className="text-[11px] text-muted-foreground">{chunks} chunks</span>
-        )}
-      </div>
-
-      <div className="mb-1 flex items-center justify-between">
-        <label className="text-xs text-muted-foreground">
-          GitHub App (write access)
-        </label>
-        <a
-          href="/help/github"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[11px] text-primary hover:underline"
-        >
-          How to connect ↗
-        </a>
-      </div>
-      {connected ? (
-        <Badge variant="secondary" className="mb-4 gap-1">
-          <CheckCircle2 className="size-3" /> Connected
-        </Badge>
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={openConnect}
-          className="mb-4 self-start gap-2"
-        >
-          <GitBranch className="size-3.5" /> Connect GitHub App
-        </Button>
-      )}
-
-      <h3 className="mb-2 mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Attached ({items.length})
+      {/* --- Collected context --- */}
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Meeting context ({items.length})
       </h3>
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        Notes, links, and screen snapshots the AI uses to generate action items.
+      </p>
       <ul className="space-y-2">
         {items.map((item) => (
           <li key={item.id} className="rounded-md border bg-card p-2 text-xs">
