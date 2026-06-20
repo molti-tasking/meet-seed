@@ -96,6 +96,59 @@ export async function generateActionItems(
   return parsed.actionItems ?? [];
 }
 
+// Synthesize a SHORT, code-grounded technical brief for the coding agent, using
+// the action items plus the most relevant retrieved code. Concise and specific.
+export async function synthesizeSpec(
+  meetingId: string,
+  args: {
+    title: string;
+    actionItems: { title: string; description: string }[];
+    relevantCode: { path: string; content: string }[];
+  }
+): Promise<string> {
+  const items = args.actionItems
+    .map((a, i) => `${i + 1}. ${a.title}: ${a.description}`)
+    .join("\n");
+  const code = args.relevantCode
+    .map((c) => `--- ${c.path} ---\n${c.content.slice(0, 1500)}`)
+    .join("\n\n");
+
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 1200,
+    messages: [
+      {
+        role: "user",
+        content: [
+          `Meeting: "${args.title}". Write a SHORT, specific technical brief for a coding agent that has this repository checked out.`,
+          "Base it on the action items and the retrieved relevant code below.",
+          "Reference the ACTUAL files and symbols from the retrieved code. Say exactly what to change or add and where. If it's a new feature, place it where the existing structure implies.",
+          "Be compact: a few tight bullet points or short paragraphs. No preamble, no restating the codebase, no filler.",
+          "",
+          "=== ACTION ITEMS ===",
+          items,
+          "",
+          "=== RELEVANT CODE (retrieved by similarity) ===",
+          code || "(none retrieved)",
+        ].join("\n"),
+      },
+    ],
+  });
+
+  await recordUsage(meetingId, "spec", MODEL, {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
+  });
+
+  return response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+}
+
 // Describe a screen-share frame for meeting context. Concise on purpose —
 // these get stored as context items the AI later reasons over.
 export async function describeScreen(

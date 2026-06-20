@@ -22,9 +22,11 @@ const priorityColor: Record<string, string> = {
 export function ActionItemsPanel({
   meetingId,
   initialItems,
+  showCodeChanges = true,
 }: {
   meetingId: string;
   initialItems: ActionItem[];
+  showCodeChanges?: boolean;
 }) {
   const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [busy, setBusy] = useState(false);
@@ -102,7 +104,9 @@ export function ActionItemsPanel({
           );
         })}
       </div>
-      <CodeChangePanel meetingId={meetingId} hasItems={items.length > 0} />
+      {showCodeChanges && (
+        <CodeChangePanel meetingId={meetingId} hasItems={items.length > 0} />
+      )}
     </div>
   );
 }

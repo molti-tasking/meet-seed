@@ -6,6 +6,7 @@ import {
   boolean,
   integer,
   index,
+  vector,
 } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -27,8 +28,33 @@ export const meetings = pgTable("Meeting", {
   // GitHub App installation id, set when a repo is connected to this room.
   githubInstallationId: text("githubInstallationId"),
   status: text("status").notNull().default("active"), // active | ended
+  // Number of code chunks embedded for this meeting's repo (0 = not indexed).
+  codebaseChunks: integer("codebaseChunks").notNull().default(0),
   createdAt: createdAt(),
 });
+
+// An embedded chunk of the connected codebase, for similarity retrieval when
+// building coding-agent specs. voyage-code-3 → 1024-dim vectors.
+export const codeChunks = pgTable(
+  "CodeChunk",
+  {
+    id: id(),
+    meetingId: text("meetingId")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    content: text("content").notNull(),
+    embedding: vector("embedding", { dimensions: 1024 }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("CodeChunk_meetingId_idx").on(t.meetingId),
+    index("CodeChunk_embedding_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops")
+    ),
+  ]
+);
 
 export const transcriptSegments = pgTable(
   "TranscriptSegment",

@@ -28,27 +28,31 @@ export type ActionItemBrief = {
   priority: string;
 };
 
-// Build the task brief the agent receives. The action items are the spec; the
+// Build the task brief the agent receives. When a synthesized, code-grounded
+// spec is available it's the task; otherwise the raw action items are. The
 // final-line contract (PR_URL/PR_ERROR) is how we read the result back out.
 function buildBrief(args: {
   meetingTitle: string;
   repoUrl: string;
   branch: string;
   actionItems: ActionItemBrief[];
+  spec?: string;
 }): string {
-  const items = args.actionItems
-    .map((a, i) => {
-      const refs = a.fileRefs.length ? `\n   files: ${a.fileRefs.join(", ")}` : "";
-      return `${i + 1}. [${a.priority}] ${a.title}\n   ${a.description}${refs}`;
-    })
-    .join("\n\n");
+  const task =
+    args.spec ??
+    args.actionItems
+      .map((a, i) => {
+        const refs = a.fileRefs.length ? `\n   files: ${a.fileRefs.join(", ")}` : "";
+        return `${i + 1}. [${a.priority}] ${a.title}\n   ${a.description}${refs}`;
+      })
+      .join("\n\n");
 
   return [
-    `These technical action items came out of the meeting "${args.meetingTitle}".`,
+    `This task came out of the meeting "${args.meetingTitle}".`,
     `The repository is checked out in your workspace (cloned from ${args.repoUrl}).`,
     "",
-    "Implement the action items:",
-    items,
+    "Implement the following:",
+    task,
     "",
     `Work on a NEW branch named "${args.branch}" off the default branch. Keep the`,
     "changes minimal and focused on what was asked. Run any available build/tests",
@@ -94,6 +98,7 @@ export async function startCodingSession(args: {
   branch: string;
   actionItems: ActionItemBrief[];
   installationId?: string | null;
+  spec?: string;
 }): Promise<{ sessionId: string; vaultId?: string }> {
   const auth = await resolveGithubAuth({
     repoUrl: args.repoUrl,

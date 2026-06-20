@@ -30,7 +30,7 @@ function costUsd(model: string, t: Required<TokenCounts>): number {
 // usage bookkeeping break the actual request.
 export async function recordUsage(
   meetingId: string,
-  kind: "action_items" | "vision" | "coding_agent",
+  kind: "action_items" | "vision" | "coding_agent" | "spec",
   model: string,
   tokens: TokenCounts
 ): Promise<void> {

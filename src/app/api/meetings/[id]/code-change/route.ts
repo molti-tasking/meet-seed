@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { isCodingAgentConfigured, startCodingSession } from "@/lib/agents";
+import { isEmbeddingConfigured } from "@/lib/embeddings";
+import { retrieveRelevantCode } from "@/lib/codebase";
+import { synthesizeSpec } from "@/lib/ai";
 
 export async function GET(
   _req: Request,
@@ -59,6 +62,25 @@ export async function POST(
   }
 
   const branch = `meeting/${meeting.roomName}-${Math.random().toString(36).slice(2, 7)}`;
+  const actionItems = items.map((a) => ({
+    title: a.title,
+    description: a.description,
+    fileRefs: safeParseRefs(a.fileRefs),
+    priority: a.priority,
+  }));
+
+  // If the codebase is indexed, retrieve the most relevant code and synthesize a
+  // short, code-grounded spec to drive the agent. Falls back to action items.
+  let spec: string | undefined;
+  if (meeting.codebaseChunks > 0 && isEmbeddingConfigured()) {
+    try {
+      const query = actionItems.map((a) => `${a.title}. ${a.description}`).join("\n");
+      const relevantCode = await retrieveRelevantCode(id, query, 8);
+      spec = await synthesizeSpec(id, { title: meeting.title, actionItems, relevantCode });
+    } catch {
+      /* fall back to plain action items */
+    }
+  }
 
   let started: { sessionId: string; vaultId?: string };
   try {
@@ -67,12 +89,8 @@ export async function POST(
       repoUrl: meeting.githubRepoUrl,
       branch,
       installationId: meeting.githubInstallationId,
-      actionItems: items.map((a) => ({
-        title: a.title,
-        description: a.description,
-        fileRefs: safeParseRefs(a.fileRefs),
-        priority: a.priority,
-      })),
+      actionItems,
+      spec,
     });
   } catch (err) {
     return NextResponse.json(

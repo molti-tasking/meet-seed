@@ -14,11 +14,13 @@ export function ContextSidebar({
   initialContext,
   initialRepoUrl,
   githubInstallationId,
+  codebaseChunks,
 }: {
   meetingId: string;
   initialContext: ContextItem[];
   initialRepoUrl: string | null;
   githubInstallationId: string | null;
+  codebaseChunks: number;
 }) {
   const [items, setItems] = useState<ContextItem[]>(initialContext);
   const [note, setNote] = useState("");
@@ -28,6 +30,24 @@ export function ContextSidebar({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(Boolean(githubInstallationId));
+  const [chunks, setChunks] = useState(codebaseChunks);
+
+  async function indexCodebase() {
+    setBusy("index");
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/index-codebase`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Indexing failed");
+      setChunks(data.chunks);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Indexing failed");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   // The "Connect GitHub App" popup signals success via postMessage.
   useEffect(() => {
@@ -160,6 +180,25 @@ export function ContextSidebar({
         {busy === "github" && <Loader2 className="size-3.5 animate-spin" />}
         {busy === "github" ? "Inspecting…" : "Connect repo"}
       </Button>
+
+      <label className="mb-1 block text-xs text-muted-foreground">
+        Codebase index (for precise agent specs)
+      </label>
+      <div className="mb-4 flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={indexCodebase}
+          disabled={busy === "index"}
+          className="gap-1.5"
+        >
+          {busy === "index" && <Loader2 className="size-3.5 animate-spin" />}
+          {busy === "index" ? "Indexing…" : chunks > 0 ? "Re-index codebase" : "Index codebase"}
+        </Button>
+        {chunks > 0 && (
+          <span className="text-[11px] text-muted-foreground">{chunks} chunks</span>
+        )}
+      </div>
 
       <div className="mb-1 flex items-center justify-between">
         <label className="text-xs text-muted-foreground">

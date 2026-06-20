@@ -50,6 +50,12 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) return;
+      // Mark this browser as the meeting owner (controls views & permissions).
+      try {
+        localStorage.setItem(`owner:${data.meeting.id}`, "1");
+      } catch {
+        /* no localStorage */
+      }
       // For the App option, open the GitHub install bound to the new meeting in
       // a popup, then drop the user into the room (which picks up the install).
       if (connectMode === "app") {
