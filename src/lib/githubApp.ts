@@ -1,25 +1,38 @@
 import crypto from "crypto";
 import { createAppAuth } from "@octokit/auth-app";
+import { log } from "@/lib/logger";
 
 const APP_ID = process.env.GITHUB_APP_ID;
 const APP_SLUG = process.env.GITHUB_APP_SLUG;
 
+// Rebuild a clean PEM even if newlines were lost (env stores often collapse
+// multi-line values) — re-wrap the base64 body at 64 cols with proper
+// header/footer lines. crypto rejects a PEM whose header isn't newline-
+// terminated ("Invalid keyData").
+function normalizePem(input: string): string {
+  const m = input.match(/-----BEGIN ([A-Z0-9 ]+?)-----([\s\S]*?)-----END \1-----/);
+  if (!m) return input.trim();
+  const label = m[1].trim();
+  const body = (m[2].match(/[A-Za-z0-9+/=]+/g) ?? []).join("");
+  const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+  return `-----BEGIN ${label}-----\n${wrapped}\n-----END ${label}-----\n`;
+}
+
 // Accept the private key as a raw PEM, a PEM with escaped "\n", or base64.
-// Detect a real PEM by the "-----BEGIN" header (those dashes can't appear in
-// base64), so a base64 blob that happens to contain the letters "BEGIN" isn't
-// mistaken for a PEM and mangled into "Invalid keyData".
+// Detect a real PEM by the "-----BEGIN" header (dashes can't appear in base64),
+// then normalize so collapsed newlines don't break signing.
 function getPrivateKey(): string | undefined {
   const raw = process.env.GITHUB_APP_PRIVATE_KEY?.trim();
   if (!raw) return undefined;
-  if (raw.includes("-----BEGIN")) return raw.replace(/\\n/g, "\n");
+  const asPem = raw.includes("-----BEGIN") ? raw.replace(/\\n/g, "\n") : null;
+  if (asPem) return normalizePem(asPem);
   try {
     const decoded = Buffer.from(raw, "base64").toString("utf8");
-    if (decoded.includes("-----BEGIN")) return decoded;
+    if (decoded.includes("-----BEGIN")) return normalizePem(decoded);
   } catch {
     /* fall through */
   }
-  // Last resort: maybe an escaped-newline PEM without our header match.
-  return raw.replace(/\\n/g, "\n");
+  return normalizePem(raw.replace(/\\n/g, "\n"));
 }
 
 export function isGithubAppConfigured(): boolean {
@@ -79,6 +92,20 @@ export async function mintInstallationToken(
 ): Promise<string> {
   const privateKey = getPrivateKey();
   if (!APP_ID || !privateKey) throw new Error("GitHub App is not configured");
+
+  // Diagnostic (no key material) — surfaces a malformed/truncated key clearly.
+  if (!privateKey.includes("-----BEGIN") || !privateKey.includes("-----END")) {
+    log.error("githubApp: GITHUB_APP_PRIVATE_KEY is not a complete PEM", {
+      length: privateKey.length,
+      hasBegin: privateKey.includes("-----BEGIN"),
+      hasEnd: privateKey.includes("-----END"),
+      appIdSet: Boolean(APP_ID),
+    });
+    throw new Error(
+      "GITHUB_APP_PRIVATE_KEY is not a complete PEM — re-paste it (base64 of the .pem recommended)"
+    );
+  }
+
   const auth = createAppAuth({ appId: APP_ID, privateKey });
   const { token } = await auth({
     type: "installation",
