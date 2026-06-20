@@ -29,6 +29,8 @@ export function ContextSidebar({
   const [repoUrl, setRepoUrl] = useState(initialRepoUrl ?? "");
   const [manualRepo, setManualRepo] = useState("");
   const [repos, setRepos] = useState<Repo[]>([]);
+  const [reposLoaded, setReposLoaded] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(Boolean(githubInstallationId));
@@ -37,8 +39,12 @@ export function ContextSidebar({
   const loadRepos = useCallback(() => {
     fetch(`/api/meetings/${meetingId}/github/repos`)
       .then((r) => r.json())
-      .then((d) => setRepos(d.repos ?? []))
-      .catch(() => {});
+      .then((d) => {
+        setReposError(d.error ?? null);
+        setRepos(d.repos ?? []);
+      })
+      .catch(() => setReposError("Could not reach the server"))
+      .finally(() => setReposLoaded(true));
   }, [meetingId]);
 
   // Load the installation's repos whenever the App is connected.
@@ -173,8 +179,24 @@ export function ContextSidebar({
                   </option>
                 ))}
               </select>
-            ) : (
+            ) : !reposLoaded ? (
               <p className="text-xs text-muted-foreground">Loading repositories…</p>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                <p className="mb-1 text-destructive">
+                  {reposError ?? "No repositories found for this installation."}
+                </p>
+                <button
+                  onClick={() => {
+                    setReposLoaded(false);
+                    setReposError(null);
+                    loadRepos();
+                  }}
+                  className="text-primary hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
             )}
           </>
         ) : (

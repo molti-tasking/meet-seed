@@ -54,7 +54,12 @@ export function TranscriptPanel({ meetingId }: { meetingId: string }) {
   const publish = useCallback(
     (m: WireMessage) => {
       try {
-        send(encoder.encode(JSON.stringify(m)), { topic: TOPIC, reliable: true });
+        // Swallow async rejections (e.g. "PC manager is closed") when the data
+        // transport isn't connected yet.
+        const r = send(encoder.encode(JSON.stringify(m)), { topic: TOPIC, reliable: true });
+        if (r && typeof (r as Promise<unknown>).then === "function") {
+          (r as Promise<unknown>).catch(() => {});
+        }
       } catch {
         /* data channel not ready */
       }

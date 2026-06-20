@@ -3,6 +3,7 @@ import { Octokit } from "@octokit/rest";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { isGithubAppConfigured, mintInstallationToken } from "@/lib/githubApp";
+import { log } from "@/lib/logger";
 
 // List the repositories the connected GitHub App installation can access, so the
 // user can pick which one this meeting works with.
@@ -37,6 +38,11 @@ export async function GET(
     }));
     return NextResponse.json({ repos });
   } catch (err) {
+    log.error("github/repos: failed to list installation repos", {
+      meetingId: id,
+      installationId: meeting.githubInstallationId,
+      err,
+    });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to list repos" },
       { status: 502 }

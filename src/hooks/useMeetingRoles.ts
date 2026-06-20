@@ -38,7 +38,13 @@ export function useMeetingRoles(isOwner: boolean) {
   const broadcast = useCallback(
     (map: Record<string, AssignableRole>) => {
       try {
-        send(encoder.encode(JSON.stringify(map)), { topic: TOPIC, reliable: true });
+        // send() can reject asynchronously when the data transport isn't ready
+        // yet (e.g. solo in the room) — swallow it instead of an unhandled
+        // "PC manager is closed" rejection.
+        const r = send(encoder.encode(JSON.stringify(map)), { topic: TOPIC, reliable: true });
+        if (r && typeof (r as Promise<unknown>).then === "function") {
+          (r as Promise<unknown>).catch(() => {});
+        }
       } catch {
         /* data channel not ready */
       }

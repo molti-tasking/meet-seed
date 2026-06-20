@@ -27,14 +27,14 @@ The repo ships a `Dockerfile`. In Coolify:
 
 ### Environment variables (Coolify → Environment Variables)
 
-| Variable | Notes |
-|---|---|
-| `NEXT_PUBLIC_LIVEKIT_URL` | **Mark as "Build Variable".** `NEXT_PUBLIC_*` values are baked into the browser bundle at *build* time, not read at runtime — if it's only a runtime var the client gets `undefined`. The `Dockerfile` already declares it as an `ARG`. |
-| `LIVEKIT_API_KEY` | runtime |
-| `LIVEKIT_API_SECRET` | runtime |
-| `DEEPGRAM_API_KEY` | runtime |
-| `ANTHROPIC_API_KEY` | runtime |
-| `DATABASE_URL` | see step 3 |
+| Variable                  | Notes                                                                                                                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_LIVEKIT_URL` | **Mark as "Build Variable".** `NEXT_PUBLIC_*` values are baked into the browser bundle at _build_ time, not read at runtime — if it's only a runtime var the client gets `undefined`. The `Dockerfile` already declares it as an `ARG`. |
+| `LIVEKIT_API_KEY`         | runtime                                                                                                                                                                                                                                 |
+| `LIVEKIT_API_SECRET`      | runtime                                                                                                                                                                                                                                 |
+| `DEEPGRAM_API_KEY`        | runtime                                                                                                                                                                                                                                 |
+| `ANTHROPIC_API_KEY`       | runtime                                                                                                                                                                                                                                 |
+| `DATABASE_URL`            | see step 3                                                                                                                                                                                                                              |
 
 Deepgram and Anthropic are called server-side or browser→SaaS directly, so no
 extra proxying or open ports are needed for them.
@@ -42,6 +42,7 @@ extra proxying or open ports are needed for them.
 ## 1b. Auth (Auth.js — magic-link + GitHub)
 
 Sign-in uses Auth.js (NextAuth v5). Set these runtime env vars:
+
 - `AUTH_SECRET` — generate with `openssl rand -base64 33`.
 - `RESEND_API_KEY` + `EMAIL_FROM` — magic-link email via Resend (`m.seedlabs.tech`
   must be the verified domain). Without the key, links are logged server-side only.
@@ -114,6 +115,7 @@ It prints `AGENT_ID`, `ENVIRONMENT_ID`, `VAULT_ID` — set those as runtime env 
 on the app in Coolify.
 
 **GitHub connection — pick one:**
+
 - **GitHub App (preferred, per-meeting):** register an App (Contents + Pull
   requests: write, Metadata: read), set its Setup URL to
   `https://<your-domain>/api/github/app/callback` with "Redirect on update" on,
@@ -134,7 +136,7 @@ confirm the migration applied.
 
 ## Redeploys & migrations
 
-Each deploy re-runs `drizzle-kit migrate`, which only applies *new* migrations and
+Each deploy re-runs `drizzle-kit migrate`, which only applies _new_ migrations and
 is a no-op otherwise. When you change `src/db/schema.ts`, run `npm run db:generate`
 locally, commit the new file under `drizzle/`, and push — Coolify applies it on
 the next deploy.
