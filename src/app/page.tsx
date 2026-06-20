@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AuthControl } from "@/components/AuthControl";
 
 type Meeting = {
   id: string;
@@ -84,9 +85,12 @@ export default function Home() {
       />
 
       <main className="mx-auto max-w-2xl px-6 py-20">
-        <p className="font-heading text-xs font-semibold uppercase tracking-widest text-primary">
-          seedlabs · meeting intelligence
-        </p>
+        <div className="mb-10 flex items-center justify-between">
+          <p className="font-heading text-xs font-semibold uppercase tracking-widest text-primary">
+            seedlabs · meeting intelligence
+          </p>
+          <AuthControl />
+        </div>
         <h1 className="font-heading mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
           Tech meetings that{" "}
           <span className="gradient-text">resolve themselves</span>

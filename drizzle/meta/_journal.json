@@ -43,6 +43,13 @@
       "when": 1781944733048,
       "tag": "0005_funny_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781957420801,
+      "tag": "0006_magenta_puppet_master",
+      "breakpoints": true
     }
   ]
 }

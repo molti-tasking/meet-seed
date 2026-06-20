@@ -39,6 +39,18 @@ The repo ships a `Dockerfile`. In Coolify:
 Deepgram and Anthropic are called server-side or browser→SaaS directly, so no
 extra proxying or open ports are needed for them.
 
+## 1b. Auth (Auth.js — magic-link + GitHub)
+
+Sign-in uses Auth.js (NextAuth v5). Set these runtime env vars:
+- `AUTH_SECRET` — generate with `openssl rand -base64 33`.
+- `RESEND_API_KEY` + `EMAIL_FROM` — magic-link email via Resend (`m.seedlabs.tech`
+  must be the verified domain). Without the key, links are logged server-side only.
+- `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` — a **GitHub OAuth App** (separate from
+  the repo GitHub App), with callback `https://<your-domain>/api/auth/callback/github`.
+
+Auth.js derives callback URLs from the request host (`trustHost: true` is set for
+Coolify/Traefik); optionally set `AUTH_URL=https://<your-domain>` to pin it.
+
 ## 2. LiveKit
 
 ### Option A — LiveKit Cloud (recommended)
