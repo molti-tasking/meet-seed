@@ -5,15 +5,21 @@ const APP_ID = process.env.GITHUB_APP_ID;
 const APP_SLUG = process.env.GITHUB_APP_SLUG;
 
 // Accept the private key as a raw PEM, a PEM with escaped "\n", or base64.
+// Detect a real PEM by the "-----BEGIN" header (those dashes can't appear in
+// base64), so a base64 blob that happens to contain the letters "BEGIN" isn't
+// mistaken for a PEM and mangled into "Invalid keyData".
 function getPrivateKey(): string | undefined {
-  const raw = process.env.GITHUB_APP_PRIVATE_KEY;
+  const raw = process.env.GITHUB_APP_PRIVATE_KEY?.trim();
   if (!raw) return undefined;
-  if (raw.includes("BEGIN")) return raw.replace(/\\n/g, "\n");
+  if (raw.includes("-----BEGIN")) return raw.replace(/\\n/g, "\n");
   try {
-    return Buffer.from(raw, "base64").toString("utf8");
+    const decoded = Buffer.from(raw, "base64").toString("utf8");
+    if (decoded.includes("-----BEGIN")) return decoded;
   } catch {
-    return raw;
+    /* fall through */
   }
+  // Last resort: maybe an escaped-newline PEM without our header match.
+  return raw.replace(/\\n/g, "\n");
 }
 
 export function isGithubAppConfigured(): boolean {
