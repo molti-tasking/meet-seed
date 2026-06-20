@@ -5,6 +5,7 @@ import { parseRepoUrl } from "@/lib/github";
 import { isGithubAppConfigured, mintInstallationToken } from "@/lib/githubApp";
 import { isEmbeddingConfigured } from "@/lib/embeddings";
 import { ingestRepo } from "@/lib/codebase";
+import { log } from "@/lib/logger";
 
 // Download the connected repo, embed it (Voyage), and store chunks for retrieval.
 export async function POST(
@@ -52,9 +53,12 @@ export async function POST(
   }
 
   try {
+    log.info("index-codebase: starting", { meetingId: id, repo: `${parsed.owner}/${parsed.repo}` });
     const result = await ingestRepo(id, parsed.owner, parsed.repo, token);
+    log.info("index-codebase: done", { meetingId: id, ...result });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
+    log.error("index-codebase: failed", { meetingId: id, repo: `${parsed.owner}/${parsed.repo}`, err });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Indexing failed" },
       { status: 502 }

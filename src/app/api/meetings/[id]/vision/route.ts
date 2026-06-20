@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { describeScreen } from "@/lib/ai";
+import { log } from "@/lib/logger";
 
 // Turn a screen-share frame into a textual context item via Claude vision.
 export async function POST(
@@ -31,6 +32,7 @@ export async function POST(
   try {
     description = await describeScreen(id, match[2], match[1]);
   } catch (err) {
+    log.error("vision: describe failed", { meetingId: id, err });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Vision request failed" },
       { status: 502 }

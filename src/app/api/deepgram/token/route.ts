@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 
 // Mint a short-lived Deepgram access token so the browser can open a realtime
 // transcription WebSocket without ever seeing the long-lived API key.
@@ -8,6 +9,7 @@ import { NextResponse } from "next/server";
 export async function POST() {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
+    log.warn("deepgram/token: DEEPGRAM_API_KEY not configured — transcription disabled");
     return NextResponse.json(
       { error: "DEEPGRAM_API_KEY is not configured" },
       { status: 500 }
@@ -26,6 +28,7 @@ export async function POST() {
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    log.error("deepgram/token: grant failed", { status: res.status, detail: detail.slice(0, 200) });
     return NextResponse.json(
       { error: "Failed to mint Deepgram token", detail },
       { status: 502 }

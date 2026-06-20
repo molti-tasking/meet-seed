@@ -5,6 +5,7 @@ import { isCodingAgentConfigured, startCodingSession } from "@/lib/agents";
 import { isEmbeddingConfigured } from "@/lib/embeddings";
 import { retrieveRelevantCode } from "@/lib/codebase";
 import { synthesizeSpec } from "@/lib/ai";
+import { log } from "@/lib/logger";
 
 export async function GET(
   _req: Request,
@@ -77,10 +78,21 @@ export async function POST(
       const query = actionItems.map((a) => `${a.title}. ${a.description}`).join("\n");
       const relevantCode = await retrieveRelevantCode(id, query, 8);
       spec = await synthesizeSpec(id, { title: meeting.title, actionItems, relevantCode });
-    } catch {
-      /* fall back to plain action items */
+      log.info("code-change: synthesized spec from indexed codebase", {
+        meetingId: id,
+        retrieved: relevantCode.length,
+      });
+    } catch (err) {
+      log.warn("code-change: spec synthesis failed, using raw action items", { meetingId: id, err });
     }
   }
+
+  log.info("code-change: starting coding agent", {
+    meetingId: id,
+    repo: meeting.githubRepoUrl,
+    items: actionItems.length,
+    grounded: Boolean(spec),
+  });
 
   let started: { sessionId: string; vaultId?: string };
   try {
@@ -93,6 +105,7 @@ export async function POST(
       spec,
     });
   } catch (err) {
+    log.error("code-change: failed to start coding agent", { meetingId: id, err });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to start coding agent" },
       { status: 502 }

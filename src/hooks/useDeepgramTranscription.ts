@@ -34,9 +34,13 @@ export function useDeepgramTranscription({ enabled, onTranscript }: Options) {
     async function start() {
       const tokenRes = await fetch("/api/deepgram/token", { method: "POST" });
       if (!tokenRes.ok) {
-        console.error("Deepgram token request failed");
+        const body = await tokenRes.text().catch(() => "");
+        console.error(
+          `[deepgram] token request failed (${tokenRes.status}) — transcription off. ${body.slice(0, 200)}`
+        );
         return;
       }
+      console.info("[deepgram] token acquired, opening transcription stream");
       const { accessToken } = await tokenRes.json();
       if (cancelled) return;
 

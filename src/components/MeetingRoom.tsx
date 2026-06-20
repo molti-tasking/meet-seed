@@ -120,6 +120,9 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
       video
       data-lk-theme="default"
       className="dark h-screen"
+      onError={(e) => console.error("[livekit] room error:", e.message, e)}
+      onConnected={() => console.info("[livekit] connected", serverUrl)}
+      onDisconnected={(reason) => console.warn("[livekit] disconnected", reason)}
     >
       <RoomAudioRenderer />
       <MeetingWorkspace meeting={meeting} isOwner={isOwner} />
