@@ -3,11 +3,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 /**
  * One-time setup for the coding-agent feature. Creates the persistent Managed
- * Agents resources (environment, agent, vault + GitHub MCP credential) and
- * prints the ids to put in your environment as AGENT_ID / ENVIRONMENT_ID /
- * VAULT_ID. Re-running creates NEW resources — run once and keep the ids.
+ * Agents resources (environment, agent, and — only if a PAT is provided — a
+ * fallback vault) and prints the ids to put in your environment. Re-running
+ * creates NEW resources — run once and keep the ids.
  *
- *   GITHUB_PAT=ghp_... ANTHROPIC_API_KEY=sk-ant-... npm run setup:agent
+ *   # With the GitHub App (recommended): no PAT needed.
+ *   ANTHROPIC_API_KEY=sk-ant-... npm run setup:agent
+ *
+ *   # Or to also create a global fallback vault for non-App repos:
+ *   GITHUB_PAT=github_pat_... ANTHROPIC_API_KEY=sk-ant-... npm run setup:agent
  */
 
 const GITHUB_MCP_URL = "https://api.githubcopilot.com/mcp/";
@@ -15,7 +19,6 @@ const GITHUB_MCP_URL = "https://api.githubcopilot.com/mcp/";
 async function main() {
   const githubPat = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is required");
-  if (!githubPat) throw new Error("GITHUB_PAT (or GITHUB_TOKEN) is required");
 
   const client = new Anthropic();
 
@@ -49,18 +52,32 @@ async function main() {
     mcp_servers: [{ type: "url", name: "github", url: GITHUB_MCP_URL }],
   });
 
-  console.log("Creating vault + GitHub MCP credential…");
-  const vault = await client.beta.vaults.create({ display_name: "github-mcp" });
-  await client.beta.vaults.credentials.create(vault.id, {
-    display_name: "GitHub MCP (PAT)",
-    auth: { type: "static_bearer", mcp_server_url: GITHUB_MCP_URL, token: githubPat },
-  });
+  // The vault is only the fallback for repos connected WITHOUT the GitHub App.
+  // With the App, each run uses a short-lived installation token in its own
+  // ephemeral vault — so a PAT/global vault isn't needed at all.
+  let vaultId: string | undefined;
+  if (githubPat) {
+    console.log("Creating fallback vault + GitHub MCP credential…");
+    const vault = await client.beta.vaults.create({ display_name: "github-mcp" });
+    await client.beta.vaults.credentials.create(vault.id, {
+      display_name: "GitHub MCP (PAT)",
+      auth: { type: "static_bearer", mcp_server_url: GITHUB_MCP_URL, token: githubPat },
+    });
+    vaultId = vault.id;
+  }
 
   console.log("\n✅ Setup complete. Add these to your environment:\n");
   console.log(`AGENT_ID=${agent.id}`);
   console.log(`ENVIRONMENT_ID=${environment.id}`);
-  console.log(`VAULT_ID=${vault.id}`);
-  console.log("\n(GITHUB_PAT must also be set at runtime — it clones/pushes the repo.)");
+  if (vaultId) {
+    console.log(`VAULT_ID=${vaultId}`);
+    console.log("\n(VAULT_ID + GITHUB_PAT are the fallback for non-App repos.)");
+  } else {
+    console.log(
+      "\nNo PAT provided — no fallback vault created. The GitHub App provides" +
+        " per-meeting auth at runtime (recommended). You do NOT need VAULT_ID/GITHUB_PAT."
+    );
+  }
 }
 
 main().catch((err) => {
