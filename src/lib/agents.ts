@@ -105,6 +105,12 @@ export async function startCodingSession(args: {
     installationId: args.installationId,
   });
 
+  // Managed Agents requires a canonical https://github.com/{owner}/{repo} URL
+  // (no .git). The repo may be stored as "owner/repo" or a full/.git URL.
+  const parsed = parseRepoUrl(args.repoUrl);
+  if (!parsed) throw new Error(`Could not parse the repository "${args.repoUrl}"`);
+  const repoHttpsUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
+
   const session = await anthropic.beta.sessions.create({
     agent: AGENT_ID!,
     environment_id: ENVIRONMENT_ID!,
@@ -113,7 +119,7 @@ export async function startCodingSession(args: {
     resources: [
       {
         type: "github_repository",
-        url: args.repoUrl,
+        url: repoHttpsUrl,
         authorization_token: auth.token,
       },
     ],
