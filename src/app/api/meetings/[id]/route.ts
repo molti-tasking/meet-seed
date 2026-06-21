@@ -48,6 +48,7 @@ export async function PATCH(
   const body = await req.json().catch(() => ({}));
   const data: Partial<typeof schema.meetings.$inferInsert> = {};
   if (typeof body.status === "string") data.status = body.status;
+  if (typeof body.language === "string") data.language = body.language;
   if (typeof body.githubRepoUrl === "string")
     data.githubRepoUrl = body.githubRepoUrl.trim() || null;
 

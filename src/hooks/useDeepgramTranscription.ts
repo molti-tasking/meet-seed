@@ -4,6 +4,8 @@ import { useEffect, useInsertionEffect, useRef } from "react";
 
 type Options = {
   enabled: boolean;
+  // Deepgram language: "multi" (auto DE/EN/…), or a code like "de", "en".
+  language: string;
   // Called for each transcript chunk for the LOCAL mic. `isFinal` marks a
   // finalized segment (interim results stream in before that).
   onTranscript: (text: string, isFinal: boolean) => void;
@@ -15,7 +17,7 @@ type Options = {
  * participant transcribes their own mic, which gives speaker attribution for
  * free (one mic = one speaker).
  */
-export function useDeepgramTranscription({ enabled, onTranscript }: Options) {
+export function useDeepgramTranscription({ enabled, language, onTranscript }: Options) {
   // Keep the latest callback in a ref so changing it doesn't restart the
   // stream. Written in an insertion effect rather than during render.
   const onTranscriptRef = useRef(onTranscript);
@@ -57,9 +59,11 @@ export function useDeepgramTranscription({ enabled, onTranscript }: Options) {
 
       const params = new URLSearchParams({
         model: "nova-3",
+        language, // "multi" handles German + English (and code-switching)
         smart_format: "true",
         interim_results: "true",
         punctuate: "true",
+        endpointing: "100", // recommended for multilingual/code-switching
       });
       // Short-lived grant tokens authenticate over the "bearer" subprotocol.
       ws = new WebSocket(
@@ -102,5 +106,5 @@ export function useDeepgramTranscription({ enabled, onTranscript }: Options) {
         ws.close();
       }
     };
-  }, [enabled]);
+  }, [enabled, language]);
 }

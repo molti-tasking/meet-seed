@@ -40,6 +40,7 @@ export default async function MeetingPage({
         githubRepoUrl: meeting.githubRepoUrl,
         githubInstallationId: meeting.githubInstallationId,
         codebaseChunks: meeting.codebaseChunks,
+        language: meeting.language,
         context: context.map((c) => ({
           id: c.id,
           type: c.type,

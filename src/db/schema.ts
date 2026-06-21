@@ -83,6 +83,8 @@ export const meetings = pgTable("Meeting", {
   status: text("status").notNull().default("active"), // active | ended
   // Number of code chunks embedded for this meeting's repo (0 = not indexed).
   codebaseChunks: integer("codebaseChunks").notNull().default(0),
+  // Deepgram transcription language: "multi" (auto DE/EN/…) or a code like "de".
+  language: text("language").notNull().default("multi"),
   createdAt: createdAt(),
 });
 

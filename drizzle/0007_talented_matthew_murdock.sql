@@ -1,0 +1,1 @@
+ALTER TABLE "Meeting" ADD COLUMN "language" text DEFAULT 'multi' NOT NULL;

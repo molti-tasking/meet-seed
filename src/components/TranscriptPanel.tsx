@@ -19,8 +19,24 @@ type WireMessage = {
   text: string;
 };
 
-export function TranscriptPanel({ meetingId }: { meetingId: string }) {
+const LANGUAGES: { value: string; label: string }[] = [
+  { value: "multi", label: "Auto (DE/EN)" },
+  { value: "en", label: "English" },
+  { value: "de", label: "German" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "nl", label: "Dutch" },
+];
+
+export function TranscriptPanel({
+  meetingId,
+  initialLanguage,
+}: {
+  meetingId: string;
+  initialLanguage: string;
+}) {
   const { localParticipant } = useLocalParticipant();
+  const [language, setLanguage] = useState(initialLanguage || "multi");
   const [finals, setFinals] = useState<FinalLine[]>([]);
   // Live (not-yet-final) text per speaker, keyed by participant identity.
   const [interims, setInterims] = useState<Record<string, { name: string; text: string }>>({});
@@ -67,9 +83,20 @@ export function TranscriptPanel({ meetingId }: { meetingId: string }) {
     [send]
   );
 
+  function changeLanguage(value: string) {
+    setLanguage(value);
+    // Persist as the meeting default (also reconnects the local stream).
+    fetch(`/api/meetings/${meetingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: value }),
+    }).catch(() => {});
+  }
+
   // Transcribe the local mic and fan results out (local state + others + DB).
   useDeepgramTranscription({
     enabled: true,
+    language,
     onTranscript: (text, isFinal) => {
       const identity = localParticipant.identity;
       const name = localParticipant.name || identity;
@@ -96,9 +123,23 @@ export function TranscriptPanel({ meetingId }: { meetingId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <h2 className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Live transcript
-      </h2>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Live transcript
+        </h2>
+        <select
+          value={language}
+          onChange={(e) => changeLanguage(e.target.value)}
+          title="Transcription language"
+          className="h-7 rounded-md border border-input bg-input/30 px-1.5 text-xs"
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.value} value={l.value}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
         {finals.length === 0 && liveInterims.length === 0 && (
           <p className="text-muted-foreground">Start speaking — transcription appears here.</p>

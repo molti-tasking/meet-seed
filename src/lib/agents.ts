@@ -42,7 +42,9 @@ function buildBrief(args: {
     args.spec ??
     args.actionItems
       .map((a, i) => {
-        const refs = a.fileRefs.length ? `\n   files: ${a.fileRefs.join(", ")}` : "";
+        const refs = a.fileRefs.length
+          ? `\n   files: ${a.fileRefs.join(", ")}`
+          : "";
         return `${i + 1}. [${a.priority}] ${a.title}\n   ${a.description}${refs}`;
       })
       .join("\n\n");
@@ -54,8 +56,12 @@ function buildBrief(args: {
     "Implement the following:",
     task,
     "",
-    `Work on a NEW branch named "${args.branch}" off the default branch. Keep the`,
-    "changes minimal and focused on what was asked. Run any available build/tests",
+    "First determine the correct BASE branch to start from. If the repository has a",
+    "single main branch, use it. If there are multiple long-lived branches (e.g.",
+    "main + develop/staging/release) or it is otherwise ambiguous which branch this",
+    "work should target, STOP and ask which base branch to use — do NOT guess.",
+    `Once the base is settled, create a NEW branch named "${args.branch}" off it.`,
+    "Keep changes minimal and focused on what was asked. Run any available build/tests",
     "to verify. Commit, push the branch, and open a pull request with the GitHub",
     "tools. Do NOT merge it — a human reviews and merges.",
     "",
@@ -87,7 +93,9 @@ async function resolveGithubAuth(args: {
   if (VAULT_ID && GITHUB_PAT) {
     return { token: GITHUB_PAT, vaultId: VAULT_ID };
   }
-  throw new Error("No GitHub auth available for this meeting (connect the GitHub App or set GITHUB_PAT + VAULT_ID)");
+  throw new Error(
+    "No GitHub auth available for this meeting (connect the GitHub App or set GITHUB_PAT + VAULT_ID)",
+  );
 }
 
 // Kick off a coding session. Returns the session id and (if created) the
@@ -108,7 +116,8 @@ export async function startCodingSession(args: {
   // Managed Agents requires a canonical https://github.com/{owner}/{repo} URL
   // (no .git). The repo may be stored as "owner/repo" or a full/.git URL.
   const parsed = parseRepoUrl(args.repoUrl);
-  if (!parsed) throw new Error(`Could not parse the repository "${args.repoUrl}"`);
+  if (!parsed)
+    throw new Error(`Could not parse the repository "${args.repoUrl}"`);
   const repoHttpsUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
 
   const session = await anthropic.beta.sessions.create({
@@ -126,7 +135,12 @@ export async function startCodingSession(args: {
   });
 
   await anthropic.beta.sessions.events.send(session.id, {
-    events: [{ type: "user.message", content: [{ type: "text", text: buildBrief(args) }] }],
+    events: [
+      {
+        type: "user.message",
+        content: [{ type: "text", text: buildBrief(args) }],
+      },
+    ],
   });
 
   return { sessionId: session.id, vaultId: auth.ephemeralVaultId };
@@ -138,6 +152,34 @@ export async function archiveVault(vaultId: string): Promise<void> {
     await anthropic.beta.vaults.archive(vaultId);
   } catch {
     /* best-effort cleanup */
+  }
+}
+
+// Turn a built-in tool call into a readable thread line ("Read src/x.ts",
+// "Ran: npm test", "Searched: TODO") instead of a generic "Used a tool".
+function describeToolUse(name: string, input: Record<string, unknown>): string {
+  const str = (k: string) => (typeof input[k] === "string" ? (input[k] as string) : "");
+  const cut = (v: string, n = 80) => (v.length > n ? `${v.slice(0, n)}…` : v);
+  const path = () => str("path") || str("file_path");
+  switch (name) {
+    case "bash":
+      return `Ran: ${cut(str("command"))}`;
+    case "read":
+      return `Read ${path()}`;
+    case "write":
+      return `Wrote ${path()}`;
+    case "edit":
+      return `Edited ${path()}`;
+    case "glob":
+      return `Listed files: ${cut(str("pattern"))}`;
+    case "grep":
+      return `Searched: ${cut(str("pattern") || str("query"))}`;
+    case "web_fetch":
+      return `Fetched ${cut(str("url"))}`;
+    case "web_search":
+      return `Searched web: ${cut(str("query"))}`;
+    default:
+      return name;
   }
 }
 
@@ -167,7 +209,9 @@ export type SessionThread = {
 };
 
 // List a session's events, build the activity thread, and derive its lifecycle.
-export async function getSessionThread(sessionId: string): Promise<SessionThread> {
+export async function getSessionThread(
+  sessionId: string,
+): Promise<SessionThread> {
   const session = await anthropic.beta.sessions.retrieve(sessionId);
   const usage = {
     inputTokens: session.usage?.input_tokens ?? 0,
@@ -191,16 +235,23 @@ export async function getSessionThread(sessionId: string): Promise<SessionThread
         lastAgentMessage = text;
       }
     } else if (event.type === "agent.thinking") {
-      entries.push({ id: event.id, kind: "thinking", text: "Thinking…" });
-    } else if (
-      event.type === "agent.tool_use" ||
-      event.type === "agent.mcp_tool_use"
-    ) {
-      entries.push({ id: event.id, kind: "tool", text: "Used a tool" });
+      // Collapse consecutive thinking events into one line.
+      if (entries[entries.length - 1]?.kind !== "thinking") {
+        entries.push({ id: event.id, kind: "thinking", text: "Thinking…" });
+      }
+    } else if (event.type === "agent.tool_use") {
+      entries.push({ id: event.id, kind: "tool", text: describeToolUse(event.name, event.input) });
+    } else if (event.type === "agent.mcp_tool_use") {
+      entries.push({
+        id: event.id,
+        kind: "tool",
+        text: `${event.mcp_server_name}: ${event.name.replace(/_/g, " ")}`,
+      });
     }
   }
 
-  const running = session.status === "running" || session.status === "rescheduling";
+  const running =
+    session.status === "running" || session.status === "rescheduling";
 
   const urlMatch = allText.match(/PR_URL:\s*(\S+)/);
   if (urlMatch) {
@@ -223,7 +274,12 @@ export async function getSessionThread(sessionId: string): Promise<SessionThread
   }
 
   if (session.status === "terminated") {
-    return { status: "failed", error: "The agent session terminated.", entries, usage };
+    return {
+      status: "failed",
+      error: "The agent session terminated.",
+      entries,
+      usage,
+    };
   }
 
   // Idle without a PR and without an explicit error → the agent is asking for
@@ -240,9 +296,11 @@ export async function getSessionThread(sessionId: string): Promise<SessionThread
 // Managed Agents queues it and processes it in order.
 export async function sendToSession(
   sessionId: string,
-  message: string
+  message: string,
 ): Promise<void> {
   await anthropic.beta.sessions.events.send(sessionId, {
-    events: [{ type: "user.message", content: [{ type: "text", text: message }] }],
+    events: [
+      { type: "user.message", content: [{ type: "text", text: message }] },
+    ],
   });
 }

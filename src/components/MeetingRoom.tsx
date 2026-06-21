@@ -31,6 +31,7 @@ export type Meeting = {
   githubRepoUrl: string | null;
   githubInstallationId: string | null;
   codebaseChunks: number;
+  language: string;
   context: { id: string; type: string; content: string }[];
   actionItems: {
     id: string;
@@ -201,7 +202,7 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
 
       <div className="flex min-h-0 flex-col border-l border-border">
         <div className="h-1/2 min-h-0 border-b border-border">
-          <TranscriptPanel meetingId={meeting.id} />
+          <TranscriptPanel meetingId={meeting.id} initialLanguage={meeting.language} />
         </div>
         <div className="h-1/2 min-h-0">
           <ActionItemsPanel meetingId={meeting.id} initialItems={meeting.actionItems} />
