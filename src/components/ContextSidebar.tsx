@@ -33,7 +33,11 @@ export function ContextSidebar({
   const [reposError, setReposError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(Boolean(githubInstallationId));
+  // The installation in effect for this meeting: its own, or an inherited one
+  // (account-wide installs are reusable). Discovered from the repos endpoint.
+  const [installationId, setInstallationId] = useState<string | null>(
+    githubInstallationId
+  );
   const [chunks, setChunks] = useState(codebaseChunks);
 
   const loadRepos = useCallback(() => {
@@ -42,26 +46,30 @@ export function ContextSidebar({
       .then((d) => {
         setReposError(d.error ?? null);
         setRepos(d.repos ?? []);
+        setInstallationId(d.installationId ?? null);
       })
       .catch(() => setReposError("Could not reach the server"))
       .finally(() => setReposLoaded(true));
   }, [meetingId]);
 
-  // Load the installation's repos whenever the App is connected.
+  // Always probe for an installation on mount: this meeting may inherit an
+  // account-wide install connected in an earlier meeting.
   useEffect(() => {
-    if (connected) loadRepos();
-  }, [connected, loadRepos]);
+    loadRepos();
+  }, [loadRepos]);
 
-  // The "Connect GitHub App" popup signals success via postMessage.
+  // The "Connect GitHub App" popup signals success via postMessage; reload to
+  // pick up the freshly bound installation and its repos.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.origin === window.location.origin && e.data?.type === "github-app-connected") {
-        setConnected(true);
+        setReposLoaded(false);
+        loadRepos();
       }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [loadRepos]);
 
   function openConnect() {
     const w = 1024;
@@ -83,7 +91,12 @@ export function ContextSidebar({
       const res = await fetch(`/api/meetings/${meetingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ githubRepoUrl: url }),
+        body: JSON.stringify({
+          githubRepoUrl: url,
+          // Bind the (possibly inherited) installation so this meeting's agents
+          // and indexing can authenticate against the chosen repo.
+          ...(installationId ? { githubInstallationId: installationId } : {}),
+        }),
       });
       if (!res.ok) throw new Error("Could not set the repository");
       setRepoUrl(url);
@@ -157,7 +170,9 @@ export function ContextSidebar({
           </a>
         </div>
 
-        {connected ? (
+        {!reposLoaded ? (
+          <p className="text-xs text-muted-foreground">Checking GitHub…</p>
+        ) : installationId ? (
           <>
             <Badge variant="secondary" className="mb-2 gap-1">
               <CheckCircle2 className="size-3" /> GitHub App connected
@@ -179,8 +194,6 @@ export function ContextSidebar({
                   </option>
                 ))}
               </select>
-            ) : !reposLoaded ? (
-              <p className="text-xs text-muted-foreground">Loading repositories…</p>
             ) : (
               <div className="text-xs text-muted-foreground">
                 <p className="mb-1 text-destructive">

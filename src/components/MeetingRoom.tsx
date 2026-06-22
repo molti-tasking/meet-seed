@@ -10,6 +10,7 @@ import { ContextSidebar } from "./ContextSidebar";
 import { ActionItemsPanel } from "./ActionItemsPanel";
 import { SharedSurface } from "./SharedSurface";
 import { AgentsPanel } from "./AgentsPanel";
+import { FeedbackPanel, type FeatureRequest } from "./FeedbackPanel";
 import { RolesPanel } from "./RolesPanel";
 import { ScreenShareCapture } from "./ScreenShareCapture";
 import { UsageFooter } from "./UsageFooter";
@@ -40,6 +41,7 @@ export type Meeting = {
     fileRefs: string;
     priority: string;
   }[];
+  featureRequests: FeatureRequest[];
 };
 
 export function MeetingRoom({ meeting }: { meeting: Meeting }) {
@@ -131,7 +133,7 @@ export function MeetingRoom({ meeting }: { meeting: Meeting }) {
   );
 }
 
-type Tab = "context" | "people" | "agents" | "surface";
+type Tab = "context" | "feedback" | "people" | "agents" | "surface";
 
 function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boolean }) {
   const { myRole, roleMap, setRole, participants, localIdentity } =
@@ -143,6 +145,7 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
   // no longer have access to (no setState-in-effect needed).
   const tabAllowed =
     tab === "context" ||
+    tab === "feedback" ||
     tab === "surface" ||
     (tab === "agents" && technical) ||
     (tab === "people" && isOwner);
@@ -159,6 +162,9 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
           <div className="flex gap-1 border-b border-border px-2 pt-2">
             <TabButton active={activeTab === "context"} onClick={() => setTab("context")}>
               Context
+            </TabButton>
+            <TabButton active={activeTab === "feedback"} onClick={() => setTab("feedback")}>
+              Feedback
             </TabButton>
             {isOwner && (
               <TabButton active={activeTab === "people"} onClick={() => setTab("people")}>
@@ -182,6 +188,13 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
                 initialRepoUrl={meeting.githubRepoUrl}
                 githubInstallationId={meeting.githubInstallationId}
                 codebaseChunks={meeting.codebaseChunks}
+              />
+            )}
+            {activeTab === "feedback" && (
+              <FeedbackPanel
+                meetingId={meeting.id}
+                initialRequests={meeting.featureRequests}
+                canBuild={technical}
               />
             )}
             {activeTab === "people" && isOwner && (

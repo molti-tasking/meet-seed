@@ -51,6 +51,10 @@ export async function PATCH(
   if (typeof body.language === "string") data.language = body.language;
   if (typeof body.githubRepoUrl === "string")
     data.githubRepoUrl = body.githubRepoUrl.trim() || null;
+  // Bind a (possibly inherited) GitHub App installation to this meeting so
+  // indexing and coding agents can authenticate against the chosen repo.
+  if (typeof body.githubInstallationId === "string")
+    data.githubInstallationId = body.githubInstallationId.trim() || null;
 
   const [meeting] = await db
     .update(schema.meetings)

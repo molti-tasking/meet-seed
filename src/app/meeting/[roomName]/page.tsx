@@ -18,7 +18,7 @@ export default async function MeetingPage({
 
   if (!meeting) notFound();
 
-  const [context, actionItems] = await Promise.all([
+  const [context, actionItems, featureRequests] = await Promise.all([
     db
       .select()
       .from(schema.contextItems)
@@ -29,6 +29,11 @@ export default async function MeetingPage({
       .from(schema.actionItems)
       .where(eq(schema.actionItems.meetingId, meeting.id))
       .orderBy(desc(schema.actionItems.createdAt)),
+    db
+      .select()
+      .from(schema.featureRequests)
+      .where(eq(schema.featureRequests.meetingId, meeting.id))
+      .orderBy(desc(schema.featureRequests.createdAt)),
   ]);
 
   return (
@@ -52,6 +57,13 @@ export default async function MeetingPage({
           description: a.description,
           fileRefs: a.fileRefs,
           priority: a.priority,
+        })),
+        featureRequests: featureRequests.map((f) => ({
+          id: f.id,
+          kind: f.kind,
+          title: f.title,
+          detail: f.detail,
+          status: f.status,
         })),
       }}
     />

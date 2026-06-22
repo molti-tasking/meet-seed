@@ -159,6 +159,26 @@ export const actionItems = pgTable(
   (t) => [index("ActionItem_meetingId_idx").on(t.meetingId)]
 );
 
+// In-meeting product feedback about the tool ITSELF (dogfooding): a participant
+// asks a question or files a feature/bug, Claude tidies it into a backlog entry,
+// and a technical user can hand it to a coding agent to fix early.
+export const featureRequests = pgTable(
+  "FeatureRequest",
+  {
+    id: id(),
+    meetingId: text("meetingId")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull().default("feature"), // question | bug | feature
+    title: text("title").notNull(),
+    detail: text("detail").notNull().default(""),
+    // open | planned (agent started) | done | dismissed
+    status: text("status").notNull().default("open"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("FeatureRequest_meetingId_idx").on(t.meetingId)]
+);
+
 export const domRecordings = pgTable(
   "DomRecording",
   {

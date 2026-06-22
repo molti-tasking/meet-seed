@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
-import { eq } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { isGithubAppConfigured, mintInstallationToken } from "@/lib/githubApp";
 import { log } from "@/lib/logger";
@@ -21,13 +21,31 @@ export async function GET(
   if (!meeting) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
-  if (!meeting.githubInstallationId || !isGithubAppConfigured()) {
-    return NextResponse.json({ repos: [] });
+  if (!isGithubAppConfigured()) {
+    return NextResponse.json({ repos: [], installationId: null });
+  }
+
+  // A GitHub App installation is account/org-wide and reusable across meetings.
+  // If this meeting isn't bound to one yet, fall back to the most recently
+  // connected installation so a fresh meeting for the same repo can still pick
+  // it without re-installing. Binding to THIS meeting happens on repo-select.
+  let installationId = meeting.githubInstallationId;
+  if (!installationId) {
+    const [recent] = await db
+      .select({ id: schema.meetings.githubInstallationId })
+      .from(schema.meetings)
+      .where(isNotNull(schema.meetings.githubInstallationId))
+      .orderBy(desc(schema.meetings.createdAt))
+      .limit(1);
+    installationId = recent?.id ?? null;
+  }
+  if (!installationId) {
+    return NextResponse.json({ repos: [], installationId: null });
   }
 
   try {
     // Unscoped installation token → can list all accessible repos.
-    const token = await mintInstallationToken(meeting.githubInstallationId);
+    const token = await mintInstallationToken(installationId);
     const octokit = new Octokit({ auth: token });
     const { data } = await octokit.apps.listReposAccessibleToInstallation({
       per_page: 100,
@@ -36,11 +54,11 @@ export async function GET(
       fullName: r.full_name,
       htmlUrl: r.html_url,
     }));
-    return NextResponse.json({ repos });
+    return NextResponse.json({ repos, installationId });
   } catch (err) {
     log.error("github/repos: failed to list installation repos", {
       meetingId: id,
-      installationId: meeting.githubInstallationId,
+      installationId,
       err,
     });
     return NextResponse.json(

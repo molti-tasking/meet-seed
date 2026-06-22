@@ -96,6 +96,71 @@ export async function generateActionItems(
   return parsed.actionItems ?? [];
 }
 
+export type ClassifiedRequest = {
+  kind: "question" | "bug" | "feature";
+  title: string;
+  detail: string;
+};
+
+const FEATURE_REQUEST_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    kind: { type: "string", enum: ["question", "bug", "feature"] },
+    title: { type: "string" },
+    detail: { type: "string" },
+  },
+  required: ["kind", "title", "detail"],
+} as const;
+
+// Turn a raw in-meeting note about the tool itself into a crisp backlog entry:
+// classify it (question/bug/feature) and rewrite a short title + detail.
+export async function classifyFeatureRequest(
+  meetingId: string,
+  rawText: string
+): Promise<ClassifiedRequest> {
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    output_config: {
+      format: { type: "json_schema", schema: FEATURE_REQUEST_SCHEMA },
+    },
+    messages: [
+      {
+        role: "user",
+        content: [
+          "A participant in a live software meeting submitted the note below about the meeting tool ITSELF — a feature idea, a bug report, or a question about how it works.",
+          "Classify it and rewrite it as a concise product backlog entry.",
+          '- kind: "bug" if something is broken or wrong, "feature" if it is a new capability or improvement, "question" if it asks how the tool works.',
+          "- title: one short imperative line (max ~10 words).",
+          "- detail: 1-2 sentences expanding on it, preserving the author's intent. Empty string if the title already says everything.",
+          "",
+          `NOTE: ${rawText}`,
+        ].join("\n"),
+      },
+    ],
+  });
+
+  await recordUsage(meetingId, "feedback", MODEL, {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
+  });
+
+  const text = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  const parsed = JSON.parse(text) as Partial<ClassifiedRequest>;
+  return {
+    kind: parsed.kind ?? "feature",
+    title: parsed.title?.trim() || rawText.slice(0, 80),
+    detail: parsed.detail?.trim() ?? "",
+  };
+}
+
 // Synthesize a SHORT, code-grounded technical brief for the coding agent, using
 // the action items plus the most relevant retrieved code. Concise and specific.
 export async function synthesizeSpec(

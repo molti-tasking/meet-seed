@@ -20,13 +20,17 @@ export async function GET(
   return NextResponse.json({ requests });
 }
 
-// Kick off a coding agent for this meeting: it implements the meeting's action
-// items against the connected repo and opens a pull request.
+// Kick off a coding agent for this meeting against the connected repo. By
+// default it implements the meeting's action items; pass a `featureRequestId`
+// to instead implement a single in-meeting product feedback item.
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+  const featureRequestId =
+    typeof body.featureRequestId === "string" ? body.featureRequestId : null;
 
   if (!isCodingAgentConfigured()) {
     return NextResponse.json(
@@ -50,25 +54,58 @@ export async function POST(
     );
   }
 
-  const items = await db
-    .select()
-    .from(schema.actionItems)
-    .where(eq(schema.actionItems.meetingId, id))
-    .orderBy(desc(schema.actionItems.createdAt));
-  if (items.length === 0) {
-    return NextResponse.json(
-      { error: "Generate action items before creating a merge request" },
-      { status: 400 }
-    );
-  }
-
   const branch = `meeting/${meeting.roomName}-${Math.random().toString(36).slice(2, 7)}`;
-  const actionItems = items.map((a) => ({
-    title: a.title,
-    description: a.description,
-    fileRefs: safeParseRefs(a.fileRefs),
-    priority: a.priority,
-  }));
+
+  // The task is either a single feedback item (when targeted) or the meeting's
+  // action items.
+  let actionItems: {
+    title: string;
+    description: string;
+    fileRefs: string[];
+    priority: string;
+  }[];
+  let featureRequest:
+    | typeof schema.featureRequests.$inferSelect
+    | undefined;
+  if (featureRequestId) {
+    [featureRequest] = await db
+      .select()
+      .from(schema.featureRequests)
+      .where(eq(schema.featureRequests.id, featureRequestId))
+      .limit(1);
+    if (!featureRequest) {
+      return NextResponse.json(
+        { error: "Feature request not found" },
+        { status: 404 }
+      );
+    }
+    actionItems = [
+      {
+        title: featureRequest.title,
+        description: featureRequest.detail || featureRequest.title,
+        fileRefs: [],
+        priority: featureRequest.kind === "bug" ? "high" : "medium",
+      },
+    ];
+  } else {
+    const items = await db
+      .select()
+      .from(schema.actionItems)
+      .where(eq(schema.actionItems.meetingId, id))
+      .orderBy(desc(schema.actionItems.createdAt));
+    if (items.length === 0) {
+      return NextResponse.json(
+        { error: "Generate action items before creating a merge request" },
+        { status: 400 }
+      );
+    }
+    actionItems = items.map((a) => ({
+      title: a.title,
+      description: a.description,
+      fileRefs: safeParseRefs(a.fileRefs),
+      priority: a.priority,
+    }));
+  }
 
   // If the codebase is indexed, retrieve the most relevant code and synthesize a
   // short, code-grounded spec to drive the agent. Falls back to action items.
@@ -123,6 +160,14 @@ export async function POST(
       status: "running",
     })
     .returning();
+
+  // Reflect that this feedback item is now being worked on.
+  if (featureRequest) {
+    await db
+      .update(schema.featureRequests)
+      .set({ status: "planned" })
+      .where(eq(schema.featureRequests.id, featureRequest.id));
+  }
 
   return NextResponse.json({ request }, { status: 201 });
 }
