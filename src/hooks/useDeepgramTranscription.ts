@@ -6,6 +6,10 @@ type Options = {
   enabled: boolean;
   // Deepgram language: "multi" (auto DE/EN/…), or a code like "de", "en".
   language: string;
+  // Mirrors the LiveKit microphone state. Audio is only streamed to Deepgram
+  // while this is true, so muting the mic stops transcription. Toggling it does
+  // NOT tear down the socket — we just stop/resume sending chunks.
+  micEnabled: boolean;
   // Called for each transcript chunk for the LOCAL mic. `isFinal` marks a
   // finalized segment (interim results stream in before that).
   onTranscript: (text: string, isFinal: boolean) => void;
@@ -17,13 +21,25 @@ type Options = {
  * participant transcribes their own mic, which gives speaker attribution for
  * free (one mic = one speaker).
  */
-export function useDeepgramTranscription({ enabled, language, onTranscript }: Options) {
+export function useDeepgramTranscription({
+  enabled,
+  language,
+  micEnabled,
+  onTranscript,
+}: Options) {
   // Keep the latest callback in a ref so changing it doesn't restart the
   // stream. Written in an insertion effect rather than during render.
   const onTranscriptRef = useRef(onTranscript);
   useInsertionEffect(() => {
     onTranscriptRef.current = onTranscript;
   });
+
+  // Mirror the mic state into a ref so muting/unmuting gates audio sending
+  // without re-running the effect (which would reconnect the socket).
+  const micEnabledRef = useRef(micEnabled);
+  useEffect(() => {
+    micEnabledRef.current = micEnabled;
+  }, [micEnabled]);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -75,7 +91,8 @@ export function useDeepgramTranscription({ enabled, language, onTranscript }: Op
         if (!stream) return;
         recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
         recorder.ondataavailable = (e) => {
-          if (e.data.size > 0 && ws?.readyState === WebSocket.OPEN) {
+          // Only stream audio while the mic is on — muting stops transcription.
+          if (micEnabledRef.current && e.data.size > 0 && ws?.readyState === WebSocket.OPEN) {
             ws.send(e.data);
           }
         };

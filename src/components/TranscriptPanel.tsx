@@ -6,12 +6,19 @@ import {
   useLocalParticipant,
 } from "@livekit/components-react";
 import { useDeepgramTranscription } from "@/hooks/useDeepgramTranscription";
+import { useResourceSync } from "@/hooks/useMeetingSync";
 
 const TOPIC = "transcript";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 type FinalLine = { id: string; identity: string; name: string; text: string };
+type TranscriptSegment = {
+  id: string;
+  speakerIdentity: string;
+  speakerLabel: string;
+  text: string;
+};
 type WireMessage = {
   kind: "interim" | "final";
   identity: string;
@@ -28,16 +35,25 @@ const LANGUAGES: { value: string; label: string }[] = [
   { value: "nl", label: "Dutch" },
 ];
 
+function toFinalLine(s: TranscriptSegment): FinalLine {
+  return { id: s.id, identity: s.speakerIdentity, name: s.speakerLabel, text: s.text };
+}
+
 export function TranscriptPanel({
   meetingId,
   initialLanguage,
+  initialFinals,
 }: {
   meetingId: string;
   initialLanguage: string;
+  initialFinals: TranscriptSegment[];
 }) {
-  const { localParticipant } = useLocalParticipant();
+  const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
   const [language, setLanguage] = useState(initialLanguage || "multi");
-  const [finals, setFinals] = useState<FinalLine[]>([]);
+  // Finalized lines are DB-authoritative: seeded from persisted history and
+  // re-fetched on a sync signal so every participant sees all speakers, even
+  // if a live data-channel message was missed.
+  const [finals, setFinals] = useState<FinalLine[]>(() => initialFinals.map(toFinalLine));
   // Live (not-yet-final) text per speaker, keyed by participant identity.
   const [interims, setInterims] = useState<Record<string, { name: string; text: string }>>({});
   // Meeting-relative clock; set on mount (Date.now() is impure for render).
@@ -83,6 +99,18 @@ export function TranscriptPanel({
     [send]
   );
 
+  // Re-read finalized lines from the DB (the source of truth for all speakers).
+  const refetchFinals = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const segs: TranscriptSegment[] = d.meeting?.transcript ?? [];
+        setFinals(segs.map(toFinalLine));
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyChange = useResourceSync("transcript", refetchFinals);
+
   function changeLanguage(value: string) {
     setLanguage(value);
     // Persist as the meeting default (also reconnects the local stream).
@@ -97,6 +125,7 @@ export function TranscriptPanel({
   useDeepgramTranscription({
     enabled: true,
     language,
+    micEnabled: isMicrophoneEnabled,
     onTranscript: (text, isFinal) => {
       const identity = localParticipant.identity;
       const name = localParticipant.name || identity;
@@ -114,7 +143,11 @@ export function TranscriptPanel({
             startTs: (Date.now() - startRef.current) / 1000,
             isFinal: true,
           }),
-        }).catch(() => {});
+        })
+          // Persisted — tell other participants to re-read from the DB so they
+          // see this line even if the live broadcast above was missed.
+          .then(() => notifyChange())
+          .catch(() => {});
       }
     },
   });

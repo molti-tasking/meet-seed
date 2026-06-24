@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, GitBranch, Loader2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, GitBranch, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { useResourceSync } from "@/hooks/useMeetingSync";
 
 type ContextItem = { id: string; type: string; content: string };
 type Repo = { fullName: string; htmlUrl: string };
@@ -52,11 +53,40 @@ export function ContextSidebar({
       .finally(() => setReposLoaded(true));
   }, [meetingId]);
 
+  // Re-read this meeting's context + repo binding from the DB. Runs on mount
+  // (so returning to this tab restores state instead of stale SSR props — the
+  // panel unmounts on tab switch), on a sync signal, and on the safety poll.
+  const refetchContext = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const m = d.meeting;
+        if (!m) return;
+        if (Array.isArray(m.context)) {
+          setItems(
+            m.context.map((c: ContextItem) => ({
+              id: c.id,
+              type: c.type,
+              content: c.content,
+            }))
+          );
+        }
+        setRepoUrl(m.githubRepoUrl ?? "");
+        if (typeof m.codebaseChunks === "number") setChunks(m.codebaseChunks);
+        // Only adopt a non-null installation so we don't clobber one that
+        // loadRepos discovered as inherited from an earlier meeting.
+        if (m.githubInstallationId) setInstallationId(m.githubInstallationId);
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyChange = useResourceSync("context", refetchContext);
+
   // Always probe for an installation on mount: this meeting may inherit an
   // account-wide install connected in an earlier meeting.
   useEffect(() => {
     loadRepos();
-  }, [loadRepos]);
+    refetchContext();
+  }, [loadRepos, refetchContext]);
 
   // The "Connect GitHub App" popup signals success via postMessage; reload to
   // pick up the freshly bound installation and its repos.
@@ -101,6 +131,7 @@ export function ContextSidebar({
       if (!res.ok) throw new Error("Could not set the repository");
       setRepoUrl(url);
       setChunks(0); // a new repo needs re-indexing
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not set the repository");
     } finally {
@@ -118,6 +149,7 @@ export function ContextSidebar({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Indexing failed");
       setChunks(data.chunks);
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Indexing failed");
     } finally {
@@ -138,6 +170,7 @@ export function ContextSidebar({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to add");
       setItems((prev) => [...prev, data.item]);
+      notifyChange();
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add");
@@ -149,6 +182,16 @@ export function ContextSidebar({
   const selectedRepo =
     repos.find((r) => repoUrl && (repoUrl === r.fullName || repoUrl === r.htmlUrl))
       ?.fullName ?? "";
+
+  // A clickable URL for the connected repo: an explicit http(s) URL as-is,
+  // otherwise the matched repo's GitHub page or an owner/repo slug expanded.
+  const repoHref = repoUrl
+    ? repoUrl.startsWith("http")
+      ? repoUrl
+      : repos.find((r) => r.fullName === repoUrl)?.htmlUrl ??
+        `https://github.com/${repoUrl}`
+    : null;
+  const repoLabel = selectedRepo || repoUrl.replace(/^https?:\/\/github\.com\//, "");
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
@@ -243,6 +286,18 @@ export function ContextSidebar({
               </div>
             </details>
           </>
+        )}
+
+        {repoUrl && repoHref && (
+          <a
+            href={repoHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 break-all text-xs text-primary hover:underline"
+          >
+            <ExternalLink className="size-3 shrink-0" />
+            {repoLabel}
+          </a>
         )}
 
         {repoUrl && (

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Check, Loader2, Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useResourceSync } from "@/hooks/useMeetingSync";
 
 type ActionItem = {
   id: string;
@@ -36,6 +37,18 @@ export function ActionItemsPanel({
   const [draft, setDraft] = useState<Draft>({ title: "", description: "", priority: "medium" });
   const [pending, setPending] = useState<string | null>(null);
 
+  // Keep every participant's list in sync: re-read from the DB on a signal or
+  // the safety-net poll, and signal others after a local change.
+  const refetchItems = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.meeting?.actionItems) setItems(d.meeting.actionItems);
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyChange = useResourceSync("action-items", refetchItems);
+
   async function generate() {
     setBusy(true);
     setError(null);
@@ -44,6 +57,7 @@ export function ActionItemsPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to generate");
       setItems((prev) => [...data.actionItems, ...prev]);
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate");
     } finally {
@@ -69,6 +83,7 @@ export function ActionItemsPanel({
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
       setItems((prev) => prev.map((i) => (i.id === itemId ? data.item : i)));
       setEditingId(null);
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -85,6 +100,7 @@ export function ActionItemsPanel({
       });
       if (!res.ok) throw new Error("Failed to delete");
       setItems((prev) => prev.filter((i) => i.id !== itemId));
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
     } finally {

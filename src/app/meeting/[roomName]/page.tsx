@@ -18,7 +18,12 @@ export default async function MeetingPage({
 
   if (!meeting) notFound();
 
-  const [context, actionItems, featureRequests] = await Promise.all([
+  const [transcript, context, actionItems, featureRequests] = await Promise.all([
+    db
+      .select()
+      .from(schema.transcriptSegments)
+      .where(eq(schema.transcriptSegments.meetingId, meeting.id))
+      .orderBy(asc(schema.transcriptSegments.startTs)),
     db
       .select()
       .from(schema.contextItems)
@@ -46,6 +51,12 @@ export default async function MeetingPage({
         githubInstallationId: meeting.githubInstallationId,
         codebaseChunks: meeting.codebaseChunks,
         language: meeting.language,
+        transcript: transcript.map((t) => ({
+          id: t.id,
+          speakerIdentity: t.speakerIdentity,
+          speakerLabel: t.speakerLabel,
+          text: t.text,
+        })),
         context: context.map((c) => ({
           id: c.id,
           type: c.type,

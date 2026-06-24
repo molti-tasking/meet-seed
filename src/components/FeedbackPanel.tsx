@@ -5,6 +5,7 @@ import { useDataChannel } from "@livekit/components-react";
 import { Bot, Check, Loader2, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useResourceSync } from "@/hooks/useMeetingSync";
 
 export type FeatureRequest = {
   id: string;
@@ -64,6 +65,19 @@ export function FeedbackPanel({
     setRequests((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
+  // DB-backed backstop: the rich peer-to-peer broadcast below handles instant
+  // updates, but a missed message (or a late joiner) is reconciled by re-reading
+  // from the server on a sync signal and the safety-net poll.
+  const refetchRequests = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}/feature-requests`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.requests)) setRequests(d.requests);
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyChange = useResourceSync("feedback", refetchRequests);
+
   // Live sync across participants.
   const { send } = useDataChannel(TOPIC, (msg) => {
     try {
@@ -107,6 +121,7 @@ export function FeedbackPanel({
       if (!res.ok) throw new Error(d.error ?? "Could not submit");
       upsert(d.request);
       broadcast({ type: "upsert", request: d.request });
+      notifyChange();
       setText("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit");
@@ -130,6 +145,7 @@ export function FeedbackPanel({
       if (res.ok && d.request) {
         upsert(d.request);
         broadcast({ type: "upsert", request: d.request });
+        notifyChange();
       }
     } finally {
       setBusy(null);
@@ -146,6 +162,7 @@ export function FeedbackPanel({
       if (res.ok) {
         removeLocal(id);
         broadcast({ type: "delete", id });
+        notifyChange();
       }
     } finally {
       setBusy(null);
@@ -166,6 +183,7 @@ export function FeedbackPanel({
       const planned = { ...r, status: "planned" };
       upsert(planned);
       broadcast({ type: "upsert", request: planned });
+      notifyChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start agent");
     } finally {

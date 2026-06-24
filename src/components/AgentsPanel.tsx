@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useResourceSync } from "@/hooks/useMeetingSync";
 
 type Status = "running" | "needs_input" | "needs_review" | "merged" | "failed";
 type ThreadEntry = { id: string; kind: string; text: string };
@@ -50,12 +51,21 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
     });
   }, []);
 
-  useEffect(() => {
+  // Re-list the meeting's runs and merge them in, so runs started by other
+  // participants are discovered (not just the ones already in local state).
+  const refetchList = useCallback(() => {
     fetch(`/api/meetings/${meetingId}/code-change`)
       .then((r) => r.json())
-      .then((d) => setReqs(d.requests ?? []))
+      .then((d) => {
+        for (const r of (d.requests ?? []) as Req[]) upsert(r);
+      })
       .catch(() => {});
-  }, [meetingId]);
+  }, [meetingId, upsert]);
+  const notifyChange = useResourceSync("code-change", refetchList);
+
+  useEffect(() => {
+    refetchList();
+  }, [refetchList]);
 
   // Poll the thread of every non-terminal run.
   const reqsRef = useRef(reqs);
@@ -93,6 +103,7 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
       const d = await res.json();
       if (res.ok) {
         upsert(d.request);
+        notifyChange();
         setDrafts((s) => ({ ...s, [reqId]: "" }));
       }
     } finally {
@@ -108,7 +119,10 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
         { method: "POST" }
       );
       const d = await res.json();
-      if (res.ok) upsert(d.request);
+      if (res.ok) {
+        upsert(d.request);
+        notifyChange();
+      }
     } finally {
       setBusy(null);
     }
@@ -124,6 +138,7 @@ export function AgentsPanel({ meetingId }: { meetingId: string }) {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Failed to start");
       upsert(d.request);
+      notifyChange();
     } catch (e) {
       setStartError(e instanceof Error ? e.message : "Failed to start");
     } finally {
