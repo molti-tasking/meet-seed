@@ -76,6 +76,18 @@ export function TranscriptPanel({
     startRef.current = Date.now();
   }, []);
 
+  // Auto-scroll the live transcript to the bottom as new lines arrive — but only
+  // when the user is already near the bottom, so scrolling up to read history
+  // isn't yanked back down.
+  const liveScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+  function onLiveScroll() {
+    const el = liveScrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
   const applyMessage = useCallback((m: WireMessage) => {
     if (m.kind === "final") {
       setFinals((prev) => [
@@ -215,6 +227,13 @@ export function TranscriptPanel({
 
   const liveInterims = Object.entries(interims).filter(([, v]) => v.text);
 
+  // Keep the live view pinned to the latest line as it streams in.
+  useEffect(() => {
+    if (view !== "live" || !stickToBottomRef.current) return;
+    const el = liveScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [finals, interims, view]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -252,7 +271,11 @@ export function TranscriptPanel({
       </div>
 
       {view === "live" ? (
-        <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+        <div
+          ref={liveScrollRef}
+          onScroll={onLiveScroll}
+          className="flex-1 space-y-3 overflow-y-auto p-4 text-sm"
+        >
           {finals.length === 0 && liveInterims.length === 0 && (
             <p className="text-muted-foreground">Start speaking — transcription appears here.</p>
           )}
