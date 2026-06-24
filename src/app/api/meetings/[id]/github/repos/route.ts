@@ -22,14 +22,19 @@ export async function GET(
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
   if (!isGithubAppConfigured()) {
-    return NextResponse.json({ repos: [], installationId: null });
+    return NextResponse.json({ repos: [], installationId: null, inherited: false });
   }
 
   // A GitHub App installation is account/org-wide and reusable across meetings.
   // If this meeting isn't bound to one yet, fall back to the most recently
   // connected installation so a fresh meeting for the same repo can still pick
   // it without re-installing. Binding to THIS meeting happens on repo-select.
+  //
+  // `inherited` flags that fallback: the install belongs to ANOTHER meeting (e.g.
+  // a collaborator's), not this one — the UI surfaces it as borrowed so the user
+  // can connect a different account/repo instead of being stuck with it.
   let installationId = meeting.githubInstallationId;
+  let inherited = false;
   if (!installationId) {
     const [recent] = await db
       .select({ id: schema.meetings.githubInstallationId })
@@ -38,9 +43,10 @@ export async function GET(
       .orderBy(desc(schema.meetings.createdAt))
       .limit(1);
     installationId = recent?.id ?? null;
+    inherited = !!installationId;
   }
   if (!installationId) {
-    return NextResponse.json({ repos: [], installationId: null });
+    return NextResponse.json({ repos: [], installationId: null, inherited: false });
   }
 
   try {
@@ -54,7 +60,7 @@ export async function GET(
       fullName: r.full_name,
       htmlUrl: r.html_url,
     }));
-    return NextResponse.json({ repos, installationId });
+    return NextResponse.json({ repos, installationId, inherited });
   } catch (err) {
     log.error("github/repos: failed to list installation repos", {
       meetingId: id,

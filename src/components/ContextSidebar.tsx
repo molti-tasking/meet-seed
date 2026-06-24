@@ -41,6 +41,9 @@ export function ContextSidebar({
   const [installationId, setInstallationId] = useState<string | null>(
     githubInstallationId
   );
+  // True when the installation in effect was borrowed from another meeting
+  // (the fallback in the repos route), not connected for THIS meeting.
+  const [inherited, setInherited] = useState(false);
   const [chunks, setChunks] = useState(codebaseChunks);
   const [glossary, setGlossary] = useState<string[]>(initialGlossary);
   const [term, setTerm] = useState("");
@@ -53,6 +56,7 @@ export function ContextSidebar({
         setReposError(d.error ?? null);
         setRepos(d.repos ?? []);
         setInstallationId(d.installationId ?? null);
+        setInherited(Boolean(d.inherited));
       })
       .catch(() => setReposError("Could not reach the server"))
       .finally(() => setReposLoaded(true));
@@ -184,6 +188,32 @@ export function ContextSidebar({
     }
   }
 
+  // Clear this meeting's GitHub binding (installation + repo). Useful to undo a
+  // wrong connection; afterward an account-wide install may still be offered.
+  async function disconnect() {
+    setBusy("disconnect");
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ githubInstallationId: "", githubRepoUrl: "" }),
+      });
+      if (!res.ok) throw new Error("Could not disconnect");
+      setRepoUrl("");
+      setRepos([]);
+      setInstallationId(null);
+      setInherited(false);
+      setChunks(0);
+      notifyChange();
+      loadRepos(); // re-probe (an account-wide install may resurface as inherited)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not disconnect");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function indexCodebase() {
     setBusy("index");
     setError(null);
@@ -274,9 +304,21 @@ export function ContextSidebar({
           <p className="text-xs text-muted-foreground">Checking GitHub…</p>
         ) : installationId ? (
           <>
-            <Badge variant="secondary" className="mb-2 gap-1">
-              <CheckCircle2 className="size-3" /> GitHub App connected
-            </Badge>
+            {inherited ? (
+              <Badge variant="outline" className="mb-2 gap-1">
+                <GitBranch className="size-3" /> Using a GitHub App from another meeting
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="mb-2 gap-1">
+                <CheckCircle2 className="size-3" /> GitHub App connected
+              </Badge>
+            )}
+            {inherited && (
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                This connection was carried over from an earlier meeting. To use a
+                repository from a different account, connect your own GitHub App below.
+              </p>
+            )}
             <label className="mb-1 block text-xs text-muted-foreground">
               Repository for this meeting
             </label>
@@ -311,6 +353,25 @@ export function ContextSidebar({
                 </button>
               </div>
             )}
+            <div className="mt-2 flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={openConnect}
+                className="gap-1.5"
+              >
+                <GitBranch className="size-3.5" /> Connect a different GitHub App
+              </Button>
+              {!inherited && (
+                <button
+                  onClick={disconnect}
+                  disabled={busy === "disconnect"}
+                  className="text-[11px] text-muted-foreground hover:text-destructive"
+                >
+                  Disconnect
+                </button>
+              )}
+            </div>
           </>
         ) : (
           <>
