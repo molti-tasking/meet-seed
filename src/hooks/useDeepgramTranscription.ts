@@ -10,6 +10,9 @@ type Options = {
   // while this is true, so muting the mic stops transcription. Toggling it does
   // NOT tear down the socket — we just stop/resume sending chunks.
   micEnabled: boolean;
+  // Domain terms to bias recognition toward (nova-3 keyterm prompting). Changing
+  // them reconnects the stream so new terms take effect.
+  keyterms?: string[];
   // Called for each transcript chunk for the LOCAL mic. `isFinal` marks a
   // finalized segment (interim results stream in before that).
   onTranscript: (text: string, isFinal: boolean) => void;
@@ -25,8 +28,11 @@ export function useDeepgramTranscription({
   enabled,
   language,
   micEnabled,
+  keyterms,
   onTranscript,
 }: Options) {
+  // Stable dependency for the effect: reconnect only when the terms change.
+  const keytermsKey = (keyterms ?? []).join("|");
   // Keep the latest callback in a ref so changing it doesn't restart the
   // stream. Written in an insertion effect rather than during render.
   const onTranscriptRef = useRef(onTranscript);
@@ -81,6 +87,11 @@ export function useDeepgramTranscription({
         punctuate: "true",
         endpointing: "100", // recommended for multilingual/code-switching
       });
+      // Bias recognition toward domain terms (nova-3 keyterm prompting). Best
+      // for English; on "multi" it's a no-op-ish hint Deepgram may ignore.
+      for (const term of keytermsKey ? keytermsKey.split("|") : []) {
+        if (term) params.append("keyterm", term);
+      }
       // Short-lived grant tokens authenticate over the "bearer" subprotocol.
       ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?${params.toString()}`,
@@ -123,5 +134,5 @@ export function useDeepgramTranscription({
         ws.close();
       }
     };
-  }, [enabled, language]);
+  }, [enabled, language, keytermsKey]);
 }

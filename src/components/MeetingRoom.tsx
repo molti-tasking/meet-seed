@@ -33,12 +33,14 @@ export type Meeting = {
   githubInstallationId: string | null;
   codebaseChunks: number;
   language: string;
+  glossary: string[];
   transcript: {
     id: string;
     speakerIdentity: string;
     speakerLabel: string;
     text: string;
   }[];
+  topics: { id: string; title: string; summary: string; points: string }[];
   context: { id: string; type: string; content: string }[];
   actionItems: {
     id: string;
@@ -194,6 +196,7 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
                 initialRepoUrl={meeting.githubRepoUrl}
                 githubInstallationId={meeting.githubInstallationId}
                 codebaseChunks={meeting.codebaseChunks}
+                initialGlossary={meeting.glossary}
               />
             )}
             {activeTab === "feedback" && (
@@ -225,6 +228,8 @@ function MeetingWorkspace({ meeting, isOwner }: { meeting: Meeting; isOwner: boo
             meetingId={meeting.id}
             initialLanguage={meeting.language}
             initialFinals={meeting.transcript}
+            initialTopics={meeting.topics}
+            initialGlossary={meeting.glossary}
           />
         </div>
         <div className="h-1/2 min-h-0">

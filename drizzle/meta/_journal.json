@@ -64,6 +64,13 @@
       "when": 1782144708001,
       "tag": "0008_dear_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782300197814,
+      "tag": "0009_stale_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, GitBranch, Loader2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, GitBranch, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,12 +17,14 @@ export function ContextSidebar({
   initialRepoUrl,
   githubInstallationId,
   codebaseChunks,
+  initialGlossary,
 }: {
   meetingId: string;
   initialContext: ContextItem[];
   initialRepoUrl: string | null;
   githubInstallationId: string | null;
   codebaseChunks: number;
+  initialGlossary: string[];
 }) {
   const [items, setItems] = useState<ContextItem[]>(initialContext);
   const [note, setNote] = useState("");
@@ -40,6 +42,9 @@ export function ContextSidebar({
     githubInstallationId
   );
   const [chunks, setChunks] = useState(codebaseChunks);
+  const [glossary, setGlossary] = useState<string[]>(initialGlossary);
+  const [term, setTerm] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const loadRepos = useCallback(() => {
     fetch(`/api/meetings/${meetingId}/github/repos`)
@@ -81,12 +86,52 @@ export function ContextSidebar({
   }, [meetingId]);
   const notifyChange = useResourceSync("context", refetchContext);
 
+  // Glossary: re-read the meeting's domain terms on a sync signal so edits by
+  // other participants (and the live keyterms in TranscriptPanel) stay current.
+  const refetchGlossary = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.meeting?.glossary !== "string") return;
+        try {
+          setGlossary(JSON.parse(d.meeting.glossary) as string[]);
+        } catch {
+          /* malformed — leave as-is */
+        }
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyGlossary = useResourceSync("glossary", refetchGlossary);
+
+  // Persist the full term list and let others (incl. live keyterms) pick it up.
+  const saveGlossary = useCallback(
+    (next: string[]) => {
+      setGlossary(next);
+      fetch(`/api/meetings/${meetingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ glossary: next }),
+      })
+        .then(() => notifyGlossary())
+        .catch(() => {});
+    },
+    [meetingId, notifyGlossary]
+  );
+
   // Always probe for an installation on mount: this meeting may inherit an
   // account-wide install connected in an earlier meeting.
   useEffect(() => {
     loadRepos();
     refetchContext();
   }, [loadRepos, refetchContext]);
+
+  // Suggested glossary terms, derived from the indexed repo + context.
+  useEffect(() => {
+    fetch(`/api/meetings/${meetingId}/glossary/suggest`)
+      .then((r) => r.json())
+      .then((d) => setSuggestions(Array.isArray(d.terms) ? d.terms : []))
+      .catch(() => {});
+  }, [meetingId, chunks, items.length]);
 
   // The "Connect GitHub App" popup signals success via postMessage; reload to
   // pick up the freshly bound installation and its repos.
@@ -157,6 +202,17 @@ export function ContextSidebar({
     }
   }
 
+  function addTerm(t: string) {
+    const v = t.trim();
+    if (!v || glossary.includes(v)) return;
+    saveGlossary([...glossary, v]);
+    setTerm("");
+  }
+
+  function removeTerm(t: string) {
+    saveGlossary(glossary.filter((x) => x !== t));
+  }
+
   async function addItem(type: "note" | "link", content: string, clear: () => void) {
     if (!content.trim()) return;
     setBusy(type);
@@ -192,6 +248,7 @@ export function ContextSidebar({
         `https://github.com/${repoUrl}`
     : null;
   const repoLabel = selectedRepo || repoUrl.replace(/^https?:\/\/github\.com\//, "");
+  const freshSuggestions = suggestions.filter((s) => !glossary.includes(s));
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
@@ -323,6 +380,74 @@ export function ContextSidebar({
               {chunks > 0 && (
                 <span className="text-[11px] text-muted-foreground">{chunks} chunks</span>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- Domain terms (glossary) --- */}
+      <div className="mb-5 rounded-lg border bg-card p-3">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Domain terms
+        </h2>
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Product and tech names — sharpens live transcription and fixes spellings when
+          organizing the transcript.
+        </p>
+        <div className="mb-2 flex gap-2">
+          <Input
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTerm(term);
+              }
+            }}
+            placeholder="e.g. LiveKit"
+            className="h-8"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => addTerm(term)}
+            disabled={!term.trim()}
+          >
+            Add
+          </Button>
+        </div>
+        {glossary.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {glossary.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center gap-1 rounded-full border bg-input/30 px-2 py-0.5 text-[11px]"
+              >
+                {t}
+                <button
+                  onClick={() => removeTerm(t)}
+                  title="Remove"
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {freshSuggestions.length > 0 && (
+          <div>
+            <p className="mb-1 text-[11px] text-muted-foreground">Suggestions</p>
+            <div className="flex flex-wrap gap-1.5">
+              {freshSuggestions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => addTerm(s)}
+                  className="rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground hover:border-solid hover:text-foreground"
+                >
+                  + {s}
+                </button>
+              ))}
             </div>
           </div>
         )}

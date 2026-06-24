@@ -96,6 +96,96 @@ export async function generateActionItems(
   return parsed.actionItems ?? [];
 }
 
+export type TranscriptTopic = {
+  title: string;
+  summary: string;
+  points: string[];
+};
+
+const TRANSCRIPT_TOPICS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    topics: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          summary: { type: "string" },
+          points: { type: "array", items: { type: "string" } },
+        },
+        required: ["title", "summary", "points"],
+      },
+    },
+  },
+  required: ["topics"],
+} as const;
+
+// Organize a raw meeting transcript into themed topics: terminology normalized
+// to the glossary, filler/off-topic chatter removed. Non-destructive — the raw
+// transcript is untouched; this returns a cleaned, clustered view.
+export async function clusterTranscript(
+  meetingId: string,
+  args: {
+    title: string;
+    transcript: { speakerLabel: string; text: string }[];
+    glossary: string[];
+  }
+): Promise<TranscriptTopic[]> {
+  const transcript =
+    args.transcript.map((s) => `${s.speakerLabel}: ${s.text}`).join("\n") ||
+    "(no transcript captured)";
+  const glossary = args.glossary.length
+    ? args.glossary.map((t) => `- ${t}`).join("\n")
+    : "(none provided)";
+
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    thinking: { type: "adaptive" },
+    output_config: { format: { type: "json_schema", schema: TRANSCRIPT_TOPICS_SCHEMA } },
+    messages: [
+      {
+        role: "user",
+        content: [
+          `You are organizing the transcript of a software consulting meeting titled "${args.title}".`,
+          "Group the discussion into coherent topics/themes, in roughly chronological order.",
+          "For each topic: a short title, a 1-2 sentence summary, and a few concise bullet points capturing what was said or decided.",
+          "",
+          "Rules:",
+          "- Correct obvious speech-to-text mis-transcriptions of domain terms to the EXACT spellings in the glossary below.",
+          "- Omit filler, small talk, side chatter, and anything off-topic. Keep only substantive discussion.",
+          "- Stay faithful to what was actually said — do not invent details.",
+          "- If little was said, return fewer topics (even one). Never fabricate.",
+          "",
+          "=== GLOSSARY (canonical domain terms) ===",
+          glossary,
+          "",
+          "=== TRANSCRIPT ===",
+          transcript,
+        ].join("\n"),
+      },
+    ],
+  });
+
+  await recordUsage(meetingId, "transcript_topics", MODEL, {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
+  });
+
+  const text = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  const parsed = JSON.parse(text) as { topics: TranscriptTopic[] };
+  return parsed.topics ?? [];
+}
+
 export type ClassifiedRequest = {
   kind: "question" | "bug" | "feature";
   title: string;

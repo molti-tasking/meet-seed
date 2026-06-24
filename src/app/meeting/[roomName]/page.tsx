@@ -18,12 +18,25 @@ export default async function MeetingPage({
 
   if (!meeting) notFound();
 
-  const [transcript, context, actionItems, featureRequests] = await Promise.all([
-    db
-      .select()
-      .from(schema.transcriptSegments)
-      .where(eq(schema.transcriptSegments.meetingId, meeting.id))
-      .orderBy(asc(schema.transcriptSegments.startTs)),
+  let glossary: string[] = [];
+  try {
+    glossary = JSON.parse(meeting.glossary) as string[];
+  } catch {
+    /* malformed — treat as empty */
+  }
+
+  const [transcript, topics, context, actionItems, featureRequests] =
+    await Promise.all([
+      db
+        .select()
+        .from(schema.transcriptSegments)
+        .where(eq(schema.transcriptSegments.meetingId, meeting.id))
+        .orderBy(asc(schema.transcriptSegments.startTs)),
+      db
+        .select()
+        .from(schema.transcriptTopics)
+        .where(eq(schema.transcriptTopics.meetingId, meeting.id))
+        .orderBy(asc(schema.transcriptTopics.orderIndex)),
     db
       .select()
       .from(schema.contextItems)
@@ -51,11 +64,18 @@ export default async function MeetingPage({
         githubInstallationId: meeting.githubInstallationId,
         codebaseChunks: meeting.codebaseChunks,
         language: meeting.language,
+        glossary,
         transcript: transcript.map((t) => ({
           id: t.id,
           speakerIdentity: t.speakerIdentity,
           speakerLabel: t.speakerLabel,
           text: t.text,
+        })),
+        topics: topics.map((t) => ({
+          id: t.id,
+          title: t.title,
+          summary: t.summary,
+          points: t.points,
         })),
         context: context.map((c) => ({
           id: c.id,

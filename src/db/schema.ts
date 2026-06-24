@@ -85,6 +85,9 @@ export const meetings = pgTable("Meeting", {
   codebaseChunks: integer("codebaseChunks").notNull().default(0),
   // Deepgram transcription language: "multi" (auto DE/EN/…) or a code like "de".
   language: text("language").notNull().default("multi"),
+  // Domain terms (JSON string[]): fed to Deepgram as keyterms to sharpen live
+  // capture, and used to normalize spellings when organizing the transcript.
+  glossary: text("glossary").notNull().default("[]"),
   createdAt: createdAt(),
 });
 
@@ -126,6 +129,25 @@ export const transcriptSegments = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("TranscriptSegment_meetingId_idx").on(t.meetingId)]
+);
+
+// A themed cluster of the transcript, produced on demand by clusterTranscript:
+// terminology normalized to the glossary, filler/off-topic lines dropped. The
+// meeting's rows are replaced wholesale on each "Organize" run (a snapshot).
+export const transcriptTopics = pgTable(
+  "TranscriptTopic",
+  {
+    id: id(),
+    meetingId: text("meetingId")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    summary: text("summary").notNull().default(""),
+    points: text("points").notNull().default("[]"), // JSON array of strings
+    orderIndex: integer("orderIndex").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("TranscriptTopic_meetingId_idx").on(t.meetingId)]
 );
 
 export const contextItems = pgTable(

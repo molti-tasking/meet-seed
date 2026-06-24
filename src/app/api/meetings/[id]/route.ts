@@ -49,6 +49,14 @@ export async function PATCH(
   const data: Partial<typeof schema.meetings.$inferInsert> = {};
   if (typeof body.status === "string") data.status = body.status;
   if (typeof body.language === "string") data.language = body.language;
+  // Domain glossary: store the full array of terms as JSON.
+  if (Array.isArray(body.glossary))
+    data.glossary = JSON.stringify(
+      body.glossary
+        .filter((t: unknown): t is string => typeof t === "string")
+        .map((t: string) => t.trim())
+        .filter(Boolean)
+    );
   if (typeof body.githubRepoUrl === "string")
     data.githubRepoUrl = body.githubRepoUrl.trim() || null;
   // Bind a (possibly inherited) GitHub App installation to this meeting so

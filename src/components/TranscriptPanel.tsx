@@ -5,6 +5,8 @@ import {
   useDataChannel,
   useLocalParticipant,
 } from "@livekit/components-react";
+import { Loader2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useDeepgramTranscription } from "@/hooks/useDeepgramTranscription";
 import { useResourceSync } from "@/hooks/useMeetingSync";
 
@@ -25,6 +27,9 @@ type WireMessage = {
   name: string;
   text: string;
 };
+// `points` arrives as a JSON-encoded string[] from the DB.
+type Topic = { id: string; title: string; summary: string; points: string };
+type View = "live" | "topics";
 
 const LANGUAGES: { value: string; label: string }[] = [
   { value: "multi", label: "Auto (DE/EN)" },
@@ -43,13 +48,22 @@ export function TranscriptPanel({
   meetingId,
   initialLanguage,
   initialFinals,
+  initialTopics,
+  initialGlossary,
 }: {
   meetingId: string;
   initialLanguage: string;
   initialFinals: TranscriptSegment[];
+  initialTopics: Topic[];
+  initialGlossary: string[];
 }) {
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
   const [language, setLanguage] = useState(initialLanguage || "multi");
+  const [view, setView] = useState<View>("live");
+  const [topics, setTopics] = useState<Topic[]>(initialTopics);
+  const [glossary, setGlossary] = useState<string[]>(initialGlossary);
+  const [organizing, setOrganizing] = useState(false);
+  const [organizeError, setOrganizeError] = useState<string | null>(null);
   // Finalized lines are DB-authoritative: seeded from persisted history and
   // re-fetched on a sync signal so every participant sees all speakers, even
   // if a live data-channel message was missed.
@@ -111,6 +125,52 @@ export function TranscriptPanel({
   }, [meetingId]);
   const notifyChange = useResourceSync("transcript", refetchFinals);
 
+  // Organized topics: DB-authoritative, synced across participants.
+  const refetchTopics = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}/transcript/topics`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.topics)) setTopics(d.topics);
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  const notifyTopics = useResourceSync("transcript-topics", refetchTopics);
+
+  // Glossary feeds Deepgram keyterms (live accuracy) and the organize pass.
+  // Re-read it when another participant edits the domain terms.
+  const refetchGlossary = useCallback(() => {
+    fetch(`/api/meetings/${meetingId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.meeting?.glossary !== "string") return;
+        try {
+          setGlossary(JSON.parse(d.meeting.glossary) as string[]);
+        } catch {
+          /* malformed — leave as-is */
+        }
+      })
+      .catch(() => {});
+  }, [meetingId]);
+  useResourceSync("glossary", refetchGlossary);
+
+  async function organize() {
+    setOrganizing(true);
+    setOrganizeError(null);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/transcript/topics`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to organize");
+      setTopics(data.topics ?? []);
+      notifyTopics();
+    } catch (e) {
+      setOrganizeError(e instanceof Error ? e.message : "Failed to organize");
+    } finally {
+      setOrganizing(false);
+    }
+  }
+
   function changeLanguage(value: string) {
     setLanguage(value);
     // Persist as the meeting default (also reconnects the local stream).
@@ -126,6 +186,7 @@ export function TranscriptPanel({
     enabled: true,
     language,
     micEnabled: isMicrophoneEnabled,
+    keyterms: glossary,
     onTranscript: (text, isFinal) => {
       const identity = localParticipant.identity;
       const name = localParticipant.name || identity;
@@ -157,39 +218,119 @@ export function TranscriptPanel({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Live transcript
-        </h2>
-        <select
-          value={language}
-          onChange={(e) => changeLanguage(e.target.value)}
-          title="Transcription language"
-          className="h-7 rounded-md border border-input bg-input/30 px-1.5 text-xs"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
-        {finals.length === 0 && liveInterims.length === 0 && (
-          <p className="text-muted-foreground">Start speaking — transcription appears here.</p>
+        <div className="flex items-center gap-1">
+          <ViewTab active={view === "live"} onClick={() => setView("live")}>
+            Live
+          </ViewTab>
+          <ViewTab active={view === "topics"} onClick={() => setView("topics")}>
+            Topics
+          </ViewTab>
+        </div>
+        {view === "live" ? (
+          <select
+            value={language}
+            onChange={(e) => changeLanguage(e.target.value)}
+            title="Transcription language"
+            className="h-7 rounded-md border border-input bg-input/30 px-1.5 text-xs"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <Button size="sm" onClick={organize} disabled={organizing} className="h-7 gap-1.5">
+            {organizing ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="size-3.5" />
+            )}
+            {organizing ? "Organizing…" : "Organize"}
+          </Button>
         )}
-        {finals.map((line) => (
-          <p key={line.id}>
-            <span className="font-medium text-primary">{line.name}: </span>
-            <span className="text-foreground">{line.text}</span>
-          </p>
-        ))}
-        {liveInterims.map(([identity, v]) => (
-          <p key={`interim-${identity}`} className="opacity-60">
-            <span className="font-medium text-primary">{v.name}: </span>
-            <span className="italic text-muted-foreground">{v.text}</span>
-          </p>
-        ))}
       </div>
+
+      {view === "live" ? (
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+          {finals.length === 0 && liveInterims.length === 0 && (
+            <p className="text-muted-foreground">Start speaking — transcription appears here.</p>
+          )}
+          {finals.map((line) => (
+            <p key={line.id}>
+              <span className="font-medium text-primary">{line.name}: </span>
+              <span className="text-foreground">{line.text}</span>
+            </p>
+          ))}
+          {liveInterims.map(([identity, v]) => (
+            <p key={`interim-${identity}`} className="opacity-60">
+              <span className="font-medium text-primary">{v.name}: </span>
+              <span className="italic text-muted-foreground">{v.text}</span>
+            </p>
+          ))}
+        </div>
+      ) : (
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+          {organizeError && <p className="text-xs text-destructive">{organizeError}</p>}
+          {topics.length === 0 ? (
+            <p className="text-muted-foreground">
+              Click Organize to group the transcript into topics — terminology corrected and
+              filler removed.
+            </p>
+          ) : (
+            topics.map((t) => <TopicCard key={t.id} topic={t} />)
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function ViewTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide transition-colors ${
+        active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TopicCard({ topic }: { topic: Topic }) {
+  let points: string[] = [];
+  try {
+    points = JSON.parse(topic.points);
+  } catch {
+    /* ignore */
+  }
+  return (
+    <details open className="rounded-lg border bg-card p-3">
+      <summary className="cursor-pointer text-sm font-medium text-foreground">
+        {topic.title}
+      </summary>
+      {topic.summary && (
+        <p className="mt-1 text-xs text-muted-foreground">{topic.summary}</p>
+      )}
+      {points.length > 0 && (
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {points.map((p, i) => (
+            <li key={i} className="text-xs text-foreground">
+              {p}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
